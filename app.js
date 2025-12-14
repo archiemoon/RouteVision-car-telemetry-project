@@ -1,4 +1,174 @@
 ////////////////////////
+// 
+////////////////////////
+
+let liveDrive = null;
+
+function startDrive() {
+    console.log("Drive Started");
+    const now = Date.now();
+
+    liveDrive = {
+        startTime: now,
+        lastUpdate: now,
+
+        distanceKm: 0,
+        totalSpeed: 0,
+        speedSamples: 0,
+
+        fuelUsedLitres: 0
+    };
+}
+
+function updateDistance(speedKph, deltaSeconds) {
+    const kmPerSecond = speedKph / 3600;
+    liveDrive.distanceKm += kmPerSecond * deltaSeconds;
+}
+
+function updateAverageSpeed(speedKph) {
+    liveDrive.totalSpeed += speedKph;
+    liveDrive.speedSamples += 1;
+}
+
+function getAverageSpeed() {
+    if (liveDrive.speedSamples === 0) return 0;
+    return liveDrive.totalSpeed / liveDrive.speedSamples;
+}
+
+const LITRES_PER_100KM = 7.5;
+
+function updateFuelUsed(deltaDistanceKm) {
+  liveDrive.fuelUsedLitres += (deltaDistanceKm / 100) * LITRES_PER_100KM;
+}
+
+function calculateMPG(distanceKm, fuelLitres) {
+    if (fuelLitres === 0) return 0;
+
+    const miles = distanceKm * 0.621371;
+    const gallons = fuelLitres * 0.219969;
+
+    return miles / gallons;
+}
+
+function stopDrive() {
+    console.log("Drive Stopped");
+
+    const driveSummary = {
+        date: new Date().toISOString().split("T")[0],
+        durationSeconds: Math.floor(
+            (Date.now() - liveDrive.startTime) / 1000
+        ),
+        distanceKm: liveDrive.distanceKm,
+        averageSpeedKph: getAverageSpeed(),
+        fuelUsedLitres: liveDrive.fuelUsedLitres,
+        estimatedMPG: calculateMPG(
+            liveDrive.distanceKm,
+            liveDrive.fuelUsedLitres
+        )
+    };
+
+    const drives = JSON.parse(localStorage.getItem("drives")) || [];
+    drives.push(driveSummary);
+    localStorage.setItem("drives", JSON.stringify(drives));
+
+    liveDrive = null;
+}
+
+////////////////////////
+// Live GPS and API logic
+////////////////////////
+
+navigator.geolocation.getCurrentPosition(
+    () => console.log("GPS allowed"),
+    err => console.error(err),
+    { enableHighAccuracy: true }
+);
+
+let geoWatchId = null;
+
+function startGPS() {
+    geoWatchId = navigator.geolocation.watchPosition(
+        handlePositionUpdate,
+        handleGPSError,
+    {
+        enableHighAccuracy: true,
+        maximumAge: 1000,
+        timeout: 10000
+    }
+    );
+}
+
+function handleGPSError(error) {
+    onsole.error("GPS error:", error);
+
+    switch (error.code) {
+    case error.PERMISSION_DENIED:
+        console.error("User denied GPS permission");
+        break;
+    case error.POSITION_UNAVAILABLE:
+        console.error("Position unavailable");
+        break;
+    case error.TIMEOUT:
+        console.error("GPS timeout");
+        break;
+    default:
+        console.error("Unknown GPS error");
+    }
+}
+
+function stopGPS() {
+    if (geoWatchId !== null) {
+    navigator.geolocation.clearWatch(geoWatchId);
+    geoWatchId = null;
+    }
+}
+
+function handlePositionUpdate(position) {
+    console.log("Tracking...");
+    ////////////////
+    if (!liveDrive) return;
+    ////////////////
+    const speedMps = position.coords.speed; // meters per second
+
+    if (speedMps === null) return; // GPS not ready yet
+
+    const speedKph = speedMps * 3.6;
+
+    updateLiveFromSpeed(speedKph);
+
+    ////////////////
+    document.getElementById("dbg-speed").textContent =
+        speedKph.toFixed(1);
+
+    document.getElementById("dbg-distance").textContent =
+        liveDrive.distanceKm.toFixed(3);
+
+    document.getElementById("dbg-fuel").textContent =
+        liveDrive.fuelUsedLitres.toFixed(3);
+
+    document.getElementById("dbg-avg-speed").textContent =
+        getAverageSpeed().toFixed(1);
+    ////////////////
+}
+
+function updateLiveFromSpeed(speedKph) {
+    const now = Date.now();
+    const deltaSeconds = (now - liveDrive.lastUpdate) / 1000;
+    liveDrive.lastUpdate = now;
+
+    const prevDistance = liveDrive.distanceKm;
+
+    updateDistance(speedKph, deltaSeconds);
+    updateAverageSpeed(speedKph);
+    updateFuelUsed(liveDrive.distanceKm - prevDistance);
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////
+
+
+////////////////////////
 // Start/Stop button logic
 ////////////////////////
 
@@ -10,7 +180,6 @@ function enterDrivingMode() {
 }
 
 function exitDrivingMode() {
-    if (!confirm("Stop driving?")) return;
     appState.mode = "idle";
     document.getElementById("driving-mode").classList.add("hidden");
 }
@@ -18,8 +187,16 @@ function exitDrivingMode() {
 const startBtn = document.getElementById("top-bar-start-btn");
 const stopBtn = document.getElementById("stop-btn");
 
-startBtn.addEventListener("click", enterDrivingMode);
-stopBtn.addEventListener("click", exitDrivingMode);
+startBtn.addEventListener("click", () => {
+    enterDrivingMode();
+    startDrive();
+    startGPS();
+});
+stopBtn.addEventListener("click", () => {
+    stopGPS();
+    stopDrive();
+    exitDrivingMode();
+});
 
 
 ////////////////////////
