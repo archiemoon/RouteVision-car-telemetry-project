@@ -25,8 +25,8 @@
     <!-- Background Element -->
     <div id="bg"></div>
 
-    <!-- Content -->
-    <div id="app" role="application" aria-label="RouteVision Application">
+    <!-- Home Page View -->
+    <div id="home-page">
         <div id="top-bar">
             <div id="top-bar-icon"></div>
             <div id="top-bar-header">
@@ -36,8 +36,8 @@
 
             <button id="top-bar-start-btn">Start</button>
 
-            <button id="top-bar-home-btn">
-                <i class="fa-solid fa-house"></i>
+            <button id="top-bar-mode-btn">
+                <i class="fa-solid fa-sun"></i>
             </button>
         </div>
 
@@ -72,6 +72,12 @@
             </button>
         </div>     
     </div>
+
+    <!-- Driving Mode View -->
+    <div id="driving-mode" class="hidden">
+        <button id="stop-btn">Stop</button>
+    </div>
+
 <script src="app.js?v=4.2.0"></script>
 </body>
 </html>
