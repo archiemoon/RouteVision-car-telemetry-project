@@ -5,11 +5,13 @@
 
 :root {
     --bg-main: rgb(249, 248, 248);
-    --bg-panel: rgba(249, 246, 246, 0.4);
+    --bg-panel: rgba(249, 246, 246, 1);
     --shadow: rgba(31, 38, 135, 0.3);
     --btn-icon: rgb(173, 173, 173);
     --text-main: rgb(66, 66, 66);
     --text-accent: rgb(120, 120, 120);
+    --green-accent: rgba(39, 179, 34, 1);
+    --profile-bubble: rgb(234, 234, 234);
 }
 
 body {
@@ -20,11 +22,13 @@ body {
 
 body.dark {
     --bg-main: rgb(33, 33, 33);
-    --bg-panel: rgba(14, 14, 14, 0.4);
+    --bg-panel: rgb(27, 27, 27);
     --shadow: rgba(236, 236, 236, 0.3);
     --btn-icon: rgb(173, 173, 173);
     --text-main: rgb(214, 214, 214);
     --text-accent: rgb(120, 120, 120);
+    --green-accent: rgba(39, 179, 34, 1);
+    --profile-bubble: rgb(66, 66, 66);
 }
 
 /*///////////////////////////////
@@ -113,7 +117,7 @@ body.dark {
     border-radius: 50px;
     border: none;
 
-    background: rgba(39, 179, 34, 0.8);
+    background: var(--green-accent);
     box-shadow: 0 4px 15px 0 rgba(31, 135, 36, 0.3);
     color: white;
 
@@ -226,6 +230,92 @@ body.dark {
     margin-bottom: 100px;
 }
 
+#profile-panel {
+    width: 250px;
+    height: 360px;
+    border-radius: 30px;
+    background-color: var(--bg-panel);
+    box-shadow: 0 4px 25px 0 var(--shadow);
+
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+#profile-photo {
+    width: 80px;
+    height: 80px;
+    border-radius: 50px;
+    border: 2px solid rgb(249, 248, 248);
+    z-index: 1;
+
+    background-image: url(profile-photo.png);
+    background-size: cover;
+    background-position: center;
+
+    position: fixed;
+    top: 16%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+#profile-content {
+    width: 220px;
+    height: 70px;
+    border-radius: 20px;
+    background-color: var(--profile-bubble);
+    box-shadow: 0 0px 4px 0 var(--shadow);
+
+    position: fixed;
+    top: 75%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+#profile-name {
+    color: var(--text-main);
+    font-size: 20px;
+    font-weight: 550;
+
+    position: fixed;
+    top: 35%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+#profile-info {
+    width: 200px;
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+
+    color: var(--text-accent);
+    font-size: 14px;
+
+    position: fixed;
+    top: 44%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+#social-buttons {
+    gap: 30px;
+    display: flex;
+    align-items: center;
+    flex-direction: row;
+
+    color: var(--text-accent);
+
+    position: fixed;
+    top: 57%;
+    left: 50%;
+    transform: translate(-50%, -50%);}
+
+#social-buttons i {
+    font-size: 26px;
+    color: var(--btn-icon);
+}
+
 /*///////////////////////////////
 // Hidden Attributes Tags
 ///////////////////////////////*/
@@ -252,6 +342,7 @@ body.dark {
     bottom: 30px;
     left: 80px;
     right: 80px;
+    min-width: 155px;
 
     display: flex;
     align-items: center;
@@ -282,5 +373,5 @@ body.dark {
 }
 
 .nav-btn.active {
-    color: rgba(39, 179, 34, 0.8);
+    color: var(--green-accent);
 }
