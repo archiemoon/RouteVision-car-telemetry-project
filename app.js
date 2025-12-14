@@ -21,6 +21,7 @@ const stopBtn = document.getElementById("stop-btn");
 startBtn.addEventListener("click", enterDrivingMode);
 stopBtn.addEventListener("click", exitDrivingMode);
 
+
 ////////////////////////
 // Dark/Light mode logic
 ////////////////////////
@@ -59,3 +60,49 @@ function toggleDarkMode() {
 
 const switcherBtn = document.getElementById("top-bar-mode-btn");
 switcherBtn.addEventListener("click", toggleDarkMode);
+
+
+////////////////////////
+// Page Switcher
+////////////////////////
+
+function setActiveNav(buttonId) {
+    document.querySelectorAll(".nav-btn")
+    .forEach(btn => btn.classList.remove("active"));
+
+    document.getElementById(buttonId).classList.add("active");
+}
+
+function showPage(pageId) {
+    const pages = document.querySelectorAll(".page");
+
+    pages.forEach(page => {
+        page.classList.remove("active");
+    });
+
+    document.getElementById(pageId).classList.add("active");
+}
+
+document.getElementById("home-btn")
+.addEventListener("click", () => {
+    showPage("home-page");
+    setActiveNav("home-btn");
+});
+
+document.getElementById("compass-btn")
+.addEventListener("click", () => {
+    showPage("recent-trips-page");
+    setActiveNav("compass-btn");
+});
+
+document.getElementById("stats-btn")
+.addEventListener("click", () => {
+    showPage("statistics-page");
+    setActiveNav("stats-btn");
+});
+
+document.getElementById("profile-btn")
+.addEventListener("click", () => {
+    showPage("profile-page");
+    setActiveNav("profile-btn");
+});

@@ -31,7 +31,6 @@ body.dark {
 // Driving Page View
 ///////////////////////////////*/
 
-/* Driving mode overlay */
 #driving-mode {
     position: fixed;
     inset: 0;
@@ -46,7 +45,6 @@ body.dark {
     display: none;
 }
 
-/* Stop button */
 #stop-btn {
     font-size: 24px;
     padding: 20px 40px;
@@ -57,7 +55,7 @@ body.dark {
 }
 
 /*///////////////////////////////
-// Home Page View
+// Background and Top bar Styling
 ///////////////////////////////*/
 
 #bg {
@@ -161,9 +159,11 @@ body.dark {
     );
 }
 
-/* Home page main content */
+/*///////////////////////////////
+// Home Page Styling
+///////////////////////////////*/
 
-#main-content {
+#home-page {
     margin-top: 70px;
     margin-bottom: 100px;
 }
@@ -199,7 +199,53 @@ body.dark {
     padding: 10px;
 }
 
-/* Bottom bar styling */
+/*///////////////////////////////
+// Recent Trips Page Styling
+///////////////////////////////*/
+
+#recent-trips-page {
+    margin-top: 75px;
+    margin-bottom: 100px;
+}
+
+/*///////////////////////////////
+// Statistics page Styling
+///////////////////////////////*/
+
+#statistics-page {
+    margin-top: 75px;
+    margin-bottom: 100px;
+}
+
+/*///////////////////////////////
+// Profile Page Styling
+///////////////////////////////*/
+
+#profile-page {
+    margin-top: 75px;
+    margin-bottom: 100px;
+}
+
+/*///////////////////////////////
+// Hidden Attributes Tags
+///////////////////////////////*/
+
+.page {
+    display: none;
+}
+
+.page.active {
+    display: block;
+}
+
+.hidden {
+    display: none;
+}
+
+
+/*///////////////////////////////
+// Bottom Bar Styling
+///////////////////////////////*/
 
 .pill-nav {
     position: fixed;
@@ -233,4 +279,8 @@ body.dark {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.nav-btn.active {
+    color: rgba(39, 179, 34, 0.8);
 }

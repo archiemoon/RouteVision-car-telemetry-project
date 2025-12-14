@@ -25,8 +25,8 @@
     <!-- Background Element -->
     <div id="bg"></div>
 
-    <!-- Home Page View -->
-    <div id="home-page">
+    <!-- Top nav bar -->
+    <div id="top-nav-bar">
         <div id="top-bar">
             <div id="top-bar-icon"></div>
             <div id="top-bar-header">
@@ -42,8 +42,10 @@
         </div>
 
         <div class="bottom-fade"></div>
+    </div>
 
-        <div id="main-content">
+    <!-- Home page View -->
+    <div id="home-page" class="page active">
             <div id="car-photo"></div>
 
             <div id="recent-trips-overview" class="main-content-panel">
@@ -55,8 +57,25 @@
                 <div id="stats-overview-content">
                 </div>
             </div>
-        </div>
+    </div>
 
+    <!-- Recent trips Page View -->
+    <div id="recent-trips-page" class="page hidden">
+        <header>A</header>
+    </div>
+
+    <!-- Statistics Page View -->
+    <div id="statistics-page" class="page hidden">
+        <header>B</header>
+    </div>
+
+    <!-- Profile Page View -->
+    <div id="profile-page" class="page hidden">
+        <header>C</header>
+    </div>
+
+    <!-- Bottom Nav Bar -->
+    <div id="bottom-nav-bar">
         <div class="pill-nav">
             <button id="home-btn" class="nav-btn">
                 <i class="fa-solid fa-house"></i>
