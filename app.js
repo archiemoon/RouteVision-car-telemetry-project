@@ -372,6 +372,11 @@ function renderTrips() {
 
 }
 
+const resetBtn = document.getElementById("reset-btn")
+resetBtn.addEventListener("click", () => {
+    localStorage.clear();
+});
+
 ////////////////////////
 // Bottom Nav (Func ran when btn pressed)
 ////////////////////////
@@ -417,10 +422,14 @@ function updateProfileStats() {
 
     const totalHoursText = document.getElementById("total-hours")
 
-    if ((totalDuration / 3600) < 0.01){
+    const totalHours = totalDuration / 3600;
+
+    if (totalHours < 0.01 && totalHours > 0){
         totalHoursText.textContent = 0.01;
+    } else if (totalHours === 0){
+        totalHoursText.textContent = 0.0;
     } else {
-        totalHoursText.textContent = (totalDuration / 3600).toFixed(2);
+        totalHoursText.textContent = totalHours.toFixed(2);
     }
 }
 
