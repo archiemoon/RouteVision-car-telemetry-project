@@ -61,7 +61,7 @@ function getAverageSpeed() {
 }
 
 
-const LITRES_PER_100KM = 5.5;
+const LITRES_PER_100KM = 5.1;
 const IDLE_LITRES_PER_HOUR = 0.8; // realistic range: 0.5–1.0
 
 function calculateMPG(distanceKm, fuelLitres) {
@@ -81,6 +81,7 @@ function stopDrive() {
 
     const driveSummary = {
         date: new Date().toISOString().split("T")[0],
+        startTime: liveDrive.startTime,
         durationSeconds: Math.floor(liveDrive.activeSeconds),
         distanceMiles: (liveDrive.distanceKm * 0.621371).toFixed(1),
         averageSpeedMPH: (getAverageSpeed()* 0.621371).toFixed(1),
@@ -155,8 +156,8 @@ function handlePositionUpdate(position) {
     if (!liveDrive) return;
     if (appState.paused) return;
 
-    const speedMps = position.coords.speed; // meters per second
-    if (speedMps === null) return; // GPS not ready yet
+    const speedMps = position.coords.speed;
+    if (speedMps === null) return;
 
     const speedKph = speedMps * 3.6;
 
@@ -257,7 +258,7 @@ function updateLiveFromSpeed(speedKph, deltaSeconds) {
 
 
 ////////////////////////
-// Start/Stop button logic
+// Start/Stop/Pause button logic
 ////////////////////////
 
 const appState = { 
@@ -311,6 +312,7 @@ stopBtn.addEventListener("click", () => {
     resetPauseIcon();
     exitDrivingMode();
     updateProfileStats();
+    renderRecentTrips();
 });
 pauseBtn.addEventListener("click", () => {
     appState.paused = !appState.paused;
@@ -364,18 +366,83 @@ function toggleDarkMode() {
 const switcherBtn = document.getElementById("top-bar-mode-btn");
 switcherBtn.addEventListener("click", toggleDarkMode);
 
+//////////////////////// Home Page ////////////////////////
+
 ////////////////////////
 // Recent Trips 
 ////////////////////////
 
-function renderTrips() {
+function renderRecentTrips() {
+    const drives = JSON.parse(localStorage.getItem("drives")) || [];
+    if (drives.length === 0) return;
 
+    const recentTripsPanel =
+        document.getElementById("recent-trips-overview-content");
+    recentTripsPanel.innerHTML = "";
+
+    // How many trips to show (max 3)
+    const count = Math.min(3, drives.length);
+
+    for (let i = 0; i < count; i++) {
+        const drive = drives[drives.length - 1 - i];
+
+        // ---- duration formatting ----
+        const duration = drive.durationSeconds;
+        let formattedDuration;
+        let suffix = "s";
+
+        if (duration < 60) {
+            formattedDuration = duration;
+        } else if (duration < 3600) {
+            formattedDuration = (duration / 60).toFixed(1);
+            suffix = "min";
+        } else {
+            formattedDuration = (duration / 3600).toFixed(2);
+            suffix = "hr";
+        }
+
+        const startTime = new Date(drive.startTime);
+
+        const hours = startTime.getHours().toString().padStart(2, "0");
+        const minutes = startTime.getMinutes().toString().padStart(2, "0");
+
+        const formattedStartTime = `${hours}:${minutes}`;
+
+        // ---- create cell ----
+        const cell = document.createElement("div");
+        cell.style.position = "relative";
+        cell.style.height = "35px";
+        cell.style.borderRadius = "15px";
+        cell.style.display = "flex";
+        cell.style.alignItems = "center";
+        cell.style.justifyContent = "center";
+        cell.style.fontSize = "12px";
+        cell.style.fontWeight = "700";
+        cell.style.color = "var(--text-main)";
+        cell.style.boxShadow = "0 0px 4px 0 var(--shadow)";
+        cell.style.marginBottom = "8px";
+
+        cell.textContent =
+            drive.date + " | " +
+            formattedStartTime + " | " +
+            drive.distanceMiles + "mi | " +
+            formattedDuration + suffix + " | " +
+            drive.estimatedMPG + "mpg";
+
+        recentTripsPanel.appendChild(cell);
+    }
 }
+
+//////////////////////// Trips Page ////////////////////////
 
 const resetBtn = document.getElementById("reset-btn")
 resetBtn.addEventListener("click", () => {
     localStorage.clear();
 });
+
+//////////////////////// Stats Page ////////////////////////
+
+//
 
 ////////////////////////
 // Bottom Nav (Func ran when btn pressed)
@@ -436,6 +503,7 @@ function updateProfileStats() {
 document.getElementById("home-btn")
 .addEventListener("click", () => {
     showPage("home-page");
+    renderRecentTrips();
     setActiveNav("home-btn");
 });
 
@@ -457,3 +525,5 @@ document.getElementById("profile-btn")
     updateProfileStats();
     setActiveNav("profile-btn");
 });
+
+renderRecentTrips();

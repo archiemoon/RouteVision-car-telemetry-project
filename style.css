@@ -305,12 +305,12 @@ body.dark {
     align-items: center;
 }
 
-.profile-figure {
+.profile-content-figure {
     color: var(--text-accent);
     font-weight: 400;
 }
 
-.profile-header {
+.profile-content-header {
     color: var(--text-main);
     font-weight: 500;
 }
