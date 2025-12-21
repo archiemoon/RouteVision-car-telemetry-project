@@ -70,6 +70,10 @@ body.dark {
     border: 2px solid rgb(89, 89, 89);
 }
 
+#debug-header {
+    color: white;
+}
+
 /*///////////////////////////////
 // Background and Top bar Styling
 ///////////////////////////////*/

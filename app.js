@@ -13,6 +13,7 @@ function startDrive() {
     liveDrive = {
         startTime: now,
         lastUpdate: now,
+        activeSeconds: 0,
         distanceKm: 0,
         fuelUsedLitres: 0
     };
@@ -24,14 +25,9 @@ function updateDistance(speedKph, deltaSeconds) {
 }
 
 function getAverageSpeed() {
-    if (!liveDrive) return 0;
+    if (!liveDrive || liveDrive.activeSeconds === 0) return 0;
 
-    const elapsedSeconds =
-    (Date.now() - liveDrive.startTime) / 1000;
-
-    if (elapsedSeconds === 0) return 0;
-
-    const hours = elapsedSeconds / 3600;
+    const hours = liveDrive.activeSeconds / 3600;
     return liveDrive.distanceKm / hours;
 }
 
@@ -126,9 +122,9 @@ function stopGPS() {
 
 function handlePositionUpdate(position) {
     console.log("Tracking...");
-    ////////////////
     if (!liveDrive) return;
-    ////////////////
+    if (appState.paused) return;
+
     const speedMps = position.coords.speed; // meters per second
 
     if (speedMps === null) return; // GPS not ready yet
@@ -139,6 +135,9 @@ function handlePositionUpdate(position) {
     updateLiveFromSpeed(speedKph);
 
     ////////////////
+    document.getElementById("dbg-time").textContent =
+        liveDrive.activeSeconds.toFixed(1);
+
     document.getElementById("dbg-speed").textContent =
         (speedMps*2.23694).toFixed(1);
 
@@ -164,6 +163,8 @@ function updateLiveFromSpeed(speedKph) {
     const deltaSeconds = (now - liveDrive.lastUpdate) / 1000;
     liveDrive.lastUpdate = now;
 
+    liveDrive.activeSeconds += deltaSeconds;
+
     const prevDistance = liveDrive.distanceKm;
 
     updateDistance(speedKph, deltaSeconds);
@@ -181,7 +182,7 @@ function updateLiveFromSpeed(speedKph) {
 
 const appState = { 
     mode: "idle",
-    paused: flase
+    paused: false
 };
 
 function enterDrivingMode() {
@@ -221,12 +222,12 @@ const pauseBtn = document.getElementById("pause-btn");
 
 startBtn.addEventListener("click", () => {
     enterDrivingMode();
-    //startDrive();
-    //startGPS();
+    startDrive();
+    startGPS();
 });
 stopBtn.addEventListener("click", () => {
-    //stopGPS();
-    //stopDrive();
+    stopGPS();
+    stopDrive();
     resetPauseIcon();
     exitDrivingMode();
 });
