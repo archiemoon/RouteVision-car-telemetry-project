@@ -210,7 +210,7 @@ body.dark {
     box-shadow: 0 0px 10px 0 var(--shadow);
 
     position: relative;
-    top: 17%;
+    top: 25%;
     left: 22%;
     transform: translate(-50%, -50%);
 }
@@ -237,6 +237,8 @@ body.dark {
     display: flex;
     align-items: center;
     font-size: 15px;
+
+    color: var(--text-main);
 
     position: fixed;
     top: 46%;
