@@ -207,7 +207,7 @@ body.dark {
     height: 30px;
     border-radius: 15px;
     background-color: var(--bg-panel);
-    box-shadow: 0 0px 10px 0 var(--shadow);
+    box-shadow: 0 0px 3px 0 var(--shadow);
 
     position: relative;
     top: 55px;
