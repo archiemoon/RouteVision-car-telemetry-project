@@ -209,7 +209,7 @@ body.dark {
     background-color: var(--bg-panel);
     box-shadow: 0 0px 10px 0 var(--shadow);
 
-    position: fixed;
+    position: relative;
     top: 17%;
     left: 22%;
     transform: translate(-50%, -50%);
