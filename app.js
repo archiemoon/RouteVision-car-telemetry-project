@@ -37,7 +37,7 @@ function startActiveTimer() {
         liveDrive.activeSeconds += 1;
 
         // IDLE FUEL (time-based)
-        if (liveDrive.lastSpeedKph < 2) {
+        if (liveDrive.lastSpeedKph < 3) {
             const deltaHours = 1 / 3600;
             liveDrive.fuelUsedLitres +=
                 IDLE_LITRES_PER_HOUR * deltaHours;
@@ -64,7 +64,7 @@ function getAverageSpeed() {
 }
 
 
-const LITRES_PER_100KM = 5.1;
+const LITRES_PER_100KM = 5.3;
 const IDLE_LITRES_PER_HOUR = 0.8; // realistic range: 0.5–1.0
 
 function calculateMPG(distanceKm, fuelLitres) {
@@ -245,9 +245,8 @@ function updateLiveFromSpeed(speedKph, deltaSeconds) {
     else if (speedKph > 120) fuelMultiplier *= 1.25;
 
     // ---- FUEL USE ----
-    if (isCoasting) {
-    // assume fuel cut-off only while moving
-    if (speedKph > 10) return;
+    if (isCoasting && speedKph > 10) {
+    fuelMultiplier *= 0.3; // reduced, not zero
     }
 
     // ---- WARM-UP PENALTY ----
@@ -265,13 +264,16 @@ function updateLiveFromSpeed(speedKph, deltaSeconds) {
     if (avgSpeedKph < 20) urbanMultiplier = 1.4;
     else if (avgSpeedKph < 30) urbanMultiplier = 1.25;
 
+    const combinedMultiplier =
+    fuelMultiplier * warmupMultiplier * urbanMultiplier;
+
+    const cappedMultiplier = Math.min(combinedMultiplier, 2.2);
+
     if (speedKph >= 2) {
         liveDrive.fuelUsedLitres +=
-        (deltaDistanceKm / 100) *
-        LITRES_PER_100KM *
-        fuelMultiplier *
-        warmupMultiplier *
-        urbanMultiplier;
+            (deltaDistanceKm / 100) *
+            LITRES_PER_100KM *
+            cappedMultiplier;
     }
 }
 
