@@ -246,7 +246,7 @@ function updateLiveFromSpeed(speedKph, deltaSeconds) {
 
     // ---- FUEL USE ----
     if (isCoasting && speedKph > 10) {
-    fuelMultiplier *= 0.3; // reduced, not zero
+    fuelMultiplier *= 0.6; // reduced, not zero
     }
 
     // ---- WARM-UP PENALTY ----
@@ -261,13 +261,13 @@ function updateLiveFromSpeed(speedKph, deltaSeconds) {
 
     const avgSpeedKph = getRecentAverageSpeed();
 
-    if (avgSpeedKph < 20) urbanMultiplier = 1.4;
-    else if (avgSpeedKph < 30) urbanMultiplier = 1.25;
+    if (avgSpeedKph < 25) urbanMultiplier = 1.45;
+    else if (avgSpeedKph < 35) urbanMultiplier = 1.3;
 
     const combinedMultiplier =
     fuelMultiplier * warmupMultiplier * urbanMultiplier;
 
-    const cappedMultiplier = Math.min(combinedMultiplier, 2.2);
+    const cappedMultiplier = Math.min(combinedMultiplier, 2.0);
 
     if (speedKph >= 2) {
         liveDrive.fuelUsedLitres +=
