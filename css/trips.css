@@ -3,6 +3,12 @@
 ///////////////////////////////*/
 
 #recent-trips-page {
+    height: 80vh;
+
     margin-top: 75px;
+    margin-left: 10px;
+    margin-right: 10px;
     margin-bottom: 100px;
+
+    overflow-y: auto;
 }

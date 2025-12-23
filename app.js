@@ -1,3 +1,7 @@
+
+
+renderHomePage()
+
 ////////////////////////
 // Data Tracking Logic
 ////////////////////////
@@ -336,8 +340,7 @@ stopBtn.addEventListener("click", () => {
     stopDrive();
     resetPauseIcon();
     exitDrivingMode();
-    updateProfileStats();
-    renderRecentTrips();
+    refreshPages();
 });
 pauseBtn.addEventListener("click", () => {
     appState.paused = !appState.paused;
@@ -444,28 +447,6 @@ function renderRecentTrips() {
     for (let i = 0; i < count; i++) {
         const drive = drives[drives.length - 1 - i];
 
-        // ---- duration formatting ----
-        const duration = drive.durationSeconds;
-        let formattedDuration;
-        let suffix = "s";
-
-        if (duration < 60) {
-            formattedDuration = duration;
-        } else if (duration < 3600) {
-            formattedDuration = (duration / 60).toFixed(1);
-            suffix = "min";
-        } else {
-            formattedDuration = (duration / 3600).toFixed(2);
-            suffix = "hr";
-        }
-
-        const startTime = new Date(drive.startTime);
-
-        const hours = startTime.getHours().toString().padStart(2, "0");
-        const minutes = startTime.getMinutes().toString().padStart(2, "0");
-
-        const formattedStartTime = `${hours}:${minutes}`;
-
         // ---- create cell ----
         const cell = document.createElement("div");
         cell.style.position = "relative";
@@ -482,23 +463,96 @@ function renderRecentTrips() {
 
         cell.textContent =
             drive.date + " | " +
-            formattedStartTime + " | " +
+            formatTime(i) + " | " +
             drive.distanceMiles + "mi | " +
-            formattedDuration + suffix + " | " +
+            formatDuration(i) + " | " +
             drive.estimatedMPG + "mpg";
 
         recentTripsPanel.appendChild(cell);
     }
 }
 
+function formatDuration(i) {
+    const drives = JSON.parse(localStorage.getItem("drives")) || [];
+    if (drives.length === 0) return;
+
+    const drive = drives[drives.length - 1 - i];
+
+    // ---- duration formatting ----
+    const duration = drive.durationSeconds;
+    let formattedDuration;
+    let suffix = "s";
+
+    if (duration < 60) {
+        formattedDuration = duration;
+    } else if (duration < 3600) {
+        formattedDuration = (duration / 60).toFixed(1);
+        suffix = "min";
+    } else {
+        formattedDuration = (duration / 3600).toFixed(2);
+        suffix = "hr";
+    }
+    return `${formattedDuration}${suffix}`;
+}
+
+function formatTime(i) {
+    const drives = JSON.parse(localStorage.getItem("drives")) || [];
+    if (drives.length === 0) return;
+
+    const drive = drives[drives.length - 1 - i];
+
+    const startTime = new Date(drive.startTime);
+
+    const hours = startTime.getHours().toString().padStart(2, "0");
+    const minutes = startTime.getMinutes().toString().padStart(2, "0");
+
+    return `${hours}:${minutes}`;
+}
+
 //////////////////////// Trips Page ////////////////////////
+function renderAllTrips() {
+    const drives = JSON.parse(localStorage.getItem("drives")) || [];
+    if (drives.length === 0) return;
+
+    const tripsPage = document.getElementById("recent-trips-page");
+    tripsPage.innerHTML = "";
+
+    // How many trips to show (max 3)
+    const count = drives.length;
+
+    for (let i = 0; i < count; i++) {
+        const drive = drives[drives.length - 1 - i];
+        // ---- create cell ----
+        const cell = document.createElement("div");
+        cell.style.position = "relative";
+        cell.style.height = "55px";
+        cell.style.borderRadius = "15px";
+        cell.style.display = "flex";
+        cell.style.alignItems = "center";
+        cell.style.justifyContent = "center";
+        cell.style.fontSize = "12px";
+        cell.style.fontWeight = "700";
+        cell.style.color = "var(--text-main)";
+        cell.style.boxShadow = "0 0px 4px 0 var(--shadow)";
+        cell.style.margin = "2px 2px 8px 2px";
+
+        cell.textContent =
+            drive.date + " | " +
+            formatTime(i) + " | " +
+            drive.distanceMiles + "mi | " +
+            formatDuration(i) + " | " +
+            drive.estimatedMPG + "mpg";
+
+        tripsPage.appendChild(cell);
+    }  
+}
+
+//////////////////////// Stats Page ////////////////////////
 
 const resetBtn = document.getElementById("reset-btn")
 resetBtn.addEventListener("click", () => {
     localStorage.clear();
 });
-
-//////////////////////// Stats Page ////////////////////////
 
 //////////////////////// Profile Page ////////////////////////
 
@@ -561,13 +615,14 @@ function showPage(pageId) {
 document.getElementById("home-btn")
 .addEventListener("click", () => {
     showPage("home-page");
-    renderRecentTrips();
+    renderHomePage();
     setActiveNav("home-btn");
 });
 
 document.getElementById("compass-btn")
 .addEventListener("click", () => {
     showPage("recent-trips-page");
+    renderAllTrips();
     setActiveNav("compass-btn");
 });
 
@@ -584,6 +639,17 @@ document.getElementById("profile-btn")
     setActiveNav("profile-btn");
 });
 
-renderRecentTrips();
+function refreshPages() {
+    renderRecentTrips();
+    //renderStatsPreview();
+    renderAllTrips();
+    //renderStats();
+    updateProfileStats();
+}
 
-updateFuelPrice();
+function renderHomePage() {
+    renderRecentTrips();
+    //renderStatsPreview();
+}
+
+//updateFuelPrice();
