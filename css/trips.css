@@ -12,3 +12,18 @@
 
     overflow-y: auto;
 }
+
+#recent-trips-header {
+    margin-top: 10px;
+
+    font-size: 30px;
+    font-weight: 500;
+    color: var(--text-main);
+
+    display: flex;
+    justify-content: center;
+}
+
+#recent-trips-page-content {
+    margin-top: 20px;
+}

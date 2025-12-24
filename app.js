@@ -66,7 +66,7 @@ function getAverageSpeed() {
 
 const LITRES_PER_100KM = 5.3;
 const IDLE_LITRES_PER_HOUR = 0.8; // realistic range: 0.5–1.0
-const MPG_CALIBRATION = 0.96;
+const MPG_CALIBRATION = 0.975;
 
 function calculateMPG(distanceKm, fuelLitres) {
     if (fuelLitres === 0) return 0;
@@ -521,37 +521,83 @@ function renderAllTrips() {
     const drives = JSON.parse(localStorage.getItem("drives")) || [];
     if (drives.length === 0) return;
 
-    const tripsPage = document.getElementById("recent-trips-page");
+    const tripsPage = document.getElementById("recent-trips-page-content");
     tripsPage.innerHTML = "";
 
     // How many trips to show (max 3)
     const count = drives.length;
 
     for (let i = 0; i < count; i++) {
-        const drive = drives[drives.length - 1 - i];
-        // ---- create cell ----
-        const cell = document.createElement("div");
-        cell.style.position = "relative";
-        cell.style.height = "55px";
-        cell.style.borderRadius = "15px";
-        cell.style.display = "flex";
-        cell.style.alignItems = "center";
-        cell.style.justifyContent = "center";
-        cell.style.fontSize = "12px";
-        cell.style.fontWeight = "700";
-        cell.style.color = "var(--text-main)";
-        cell.style.boxShadow = "0 0px 4px 0 var(--shadow)";
-        cell.style.margin = "2px 2px 8px 2px";
+    const drive = drives[drives.length - 1 - i];
 
-        cell.textContent =
-            drive.date + " | " +
-            formatTime(i) + " | " +
-            drive.distanceMiles + "mi | " +
-            formatDuration(i) + " | " +
-            drive.estimatedMPG + "mpg";
+    const cell = document.createElement("div");
+    cell.style.position = "relative";
+    cell.style.height = "55px";
+    cell.style.borderRadius = "15px";
+    cell.style.display = "flex";
+    cell.style.alignItems = "center";
+    cell.style.justifyContent = "space-between";
+    cell.style.fontSize = "12px";
+    cell.style.fontWeight = "700";
+    cell.style.color = "var(--text-main)";
+    cell.style.boxShadow = "0 0px 4px 0 var(--shadow)";
+    cell.style.margin = "10px 2px 8px 2px";
+    cell.style.padding = "0 12px";
 
-        tripsPage.appendChild(cell);
-    }  
+    // ---- text ----
+    const text = document.createElement("div");
+    text.style.display = "flex";
+    text.style.flexDirection = "column";
+    text.style.lineHeight = "1.2";
+
+// ---- line 1 ----
+    const line1 = document.createElement("span");
+    line1.textContent = `${drive.date} @ ${formatTime(i)}`;
+    line1.style.fontSize = "16px";
+    line1.style.fontWeight = "700";
+
+// ---- line 2 ----
+    const line2 = document.createElement("span");
+    line2.textContent = 
+        `${drive.distanceMiles}mi | ${formatDuration(i)} | ${drive.estimatedMPG}mpg`;
+    line2.style.fontSize = "15px";
+    line2.style.fontWeight = "600";
+    line2.style.color = "var(--text-accent)";
+
+    // ---- delete button ----
+    const deleteButton = document.createElement("button");
+    deleteButton.textContent = "✕";
+    deleteButton.style.borderRadius = "50%";
+    deleteButton.style.backgroundColor = "var(--red-accent)";
+    deleteButton.style.boxShadow = "0 0px 5px 0 var(--red-accent)";
+    deleteButton.style.color = "white";
+    deleteButton.style.border = "none";
+    deleteButton.style.width = "30px";
+    deleteButton.style.height = "30px";
+    deleteButton.style.cursor = "pointer";
+
+    deleteButton.onclick = () => {
+        deleteDriveByStartTime(drive.startTime);
+        cell.remove();
+    };
+
+    text.appendChild(line1);
+    text.appendChild(line2);
+    cell.appendChild(text);
+    cell.appendChild(deleteButton);
+
+    tripsPage.appendChild(cell);
+}
+}
+
+function deleteDriveByStartTime(startTime) {
+    const drives = JSON.parse(localStorage.getItem("drives")) || [];
+
+    const updatedDrives = drives.filter(
+        drive => drive.startTime !== startTime
+    );
+
+    localStorage.setItem("drives", JSON.stringify(updatedDrives));
 }
 
 //////////////////////// Stats Page ////////////////////////
@@ -659,4 +705,4 @@ function renderHomePage() {
     //renderStatsPreview();
 }
 
-//updateFuelPrice();
+updateFuelPrice();
