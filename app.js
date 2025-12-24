@@ -66,6 +66,7 @@ function getAverageSpeed() {
 
 const LITRES_PER_100KM = 5.3;
 const IDLE_LITRES_PER_HOUR = 0.8; // realistic range: 0.5–1.0
+const MPG_CALIBRATION = 0.96;
 
 function calculateMPG(distanceKm, fuelLitres) {
     if (fuelLitres === 0) return 0;
@@ -73,7 +74,9 @@ function calculateMPG(distanceKm, fuelLitres) {
     const miles = distanceKm * 0.621371;
     const gallons = fuelLitres * 0.219969;
 
-    return miles / gallons;
+    const rawMpg = miles / gallons;
+
+    return rawMpg * MPG_CALIBRATION;
 }
 
 function stopDrive() {
