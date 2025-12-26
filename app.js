@@ -63,10 +63,13 @@ function getAverageSpeed() {
     return liveDrive.distanceKm / hours;
 }
 
-
+//////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////
 const LITRES_PER_100KM = 5.3;
 const IDLE_LITRES_PER_HOUR = 0.8; // realistic range: 0.5–1.0
 const MPG_CALIBRATION = 0.985;
+//////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////
 
 function calculateMPG(distanceKm, fuelLitres) {
     if (fuelLitres === 0) return 0;
@@ -79,18 +82,24 @@ function calculateMPG(distanceKm, fuelLitres) {
     return rawMpg * MPG_CALIBRATION;
 }
 
-function stopDrive() {
+async function stopDrive() {
     stopActiveTimer()
     appState.paused = false;
 
+    const iso = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+    const [y, m, d] = iso.split("-");
+    const formattedDate = `${d}/${m}/${y}`;
+
+    const fuelPrice = await getLocalE10Price();
+
     const driveSummary = {
-        date: new Date().toISOString().split("T")[0],
+        date: formattedDate,
         startTime: liveDrive.startTime,
         durationSeconds: Math.floor(liveDrive.activeSeconds),
         distanceMiles: (liveDrive.distanceKm * 0.621371).toFixed(1),
         averageSpeedMPH: (getAverageSpeed()* 0.621371).toFixed(1),
         fuelUsedLitres: liveDrive.fuelUsedLitres.toFixed(3),
-        fuelPrice: getLocalE10Price().toFixed(1),
+        fuelPrice: fuelPrice.toFixed(1),
         estimatedMPG: calculateMPG(
             liveDrive.distanceKm,
             liveDrive.fuelUsedLitres
@@ -343,9 +352,9 @@ startBtn.addEventListener("click", () => {
     startDrive();
     startGPS();
 });
-stopBtn.addEventListener("click", () => {
+stopBtn.addEventListener("click", async () => {
     stopGPS();
-    stopDrive();
+    await stopDrive();
     resetPauseIcon();
     exitDrivingMode();
     refreshPages();
@@ -437,12 +446,12 @@ async function getLocalE10Price() {
 ////////////////////////
 
 function renderRecentTrips() {
-    const drives = JSON.parse(localStorage.getItem("drives")) || [];
-    if (drives.length === 0) return;
-
     const recentTripsPanel =
         document.getElementById("recent-trips-overview-content");
     recentTripsPanel.innerHTML = "";
+
+    const drives = JSON.parse(localStorage.getItem("drives")) || [];
+    if (drives.length === 0) return;
 
     // How many trips to show (max 3)
     const count = Math.min(3, drives.length);
@@ -514,11 +523,11 @@ function formatTime(i) {
 
 //////////////////////// Trips Page ////////////////////////
 function renderAllTrips() {
-    const drives = JSON.parse(localStorage.getItem("drives")) || [];
-    if (drives.length === 0) return;
-
     const tripsPage = document.getElementById("recent-trips-page-content");
     tripsPage.innerHTML = "";
+
+    const drives = JSON.parse(localStorage.getItem("drives")) || [];
+    if (drives.length === 0) return;
 
     // How many trips to show (max 3)
     const count = drives.length;
@@ -609,12 +618,19 @@ function deleteDriveByStartTime(startTime) {
 const resetBtn = document.getElementById("reset-btn")
 resetBtn.addEventListener("click", () => {
     localStorage.clear();
+    refreshPages();
 });
 
 //////////////////////// Profile Page ////////////////////////
 
 function updateProfileStats() {
     const drives = JSON.parse(localStorage.getItem("drives")) || [];
+
+    document.getElementById("total-drives").textContent = 0;
+    document.getElementById("total-miles").textContent = 0;
+    document.getElementById("total-hours").textContent = "0.00";
+
+    if (drives.length === 0) return;
 
     const totalDrives = drives.length;
 
