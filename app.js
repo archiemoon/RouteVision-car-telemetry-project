@@ -482,7 +482,7 @@ function renderRecentTrips() {
         cell.style.marginBottom = "8px";
 
         cell.textContent =
-            drive.date + " | " +
+            drive.date + " @ " +
             formatTime(i) + " | " +
             drive.distanceMiles + "mi | " +
             formatDuration(i) + " | " +
@@ -579,7 +579,7 @@ function renderAllTrips() {
 
         line2.style.whiteSpace = "pre-line";
         line2.textContent = 
-            `${drive.distanceMiles}mi | ${formatDuration(i)} | ${drive.averageSpeedMPH}mph
+            `${formatDuration(i)} | ${drive.distanceMiles}mi | ${drive.averageSpeedMPH}mph
             ${drive.estimatedMPG}mpg | ${drive.fuelUsedLitres}l | £${(drive.fuelUsedLitres * (price/100)).toFixed(2)}`;
         line2.style.fontSize = "15px";
         line2.style.fontWeight = "600";
