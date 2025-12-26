@@ -82,7 +82,7 @@ function calculateMPG(distanceKm, fuelLitres) {
     return rawMpg * MPG_CALIBRATION;
 }
 
-async function stopDrive() {
+function stopDrive() {
     stopActiveTimer()
     appState.paused = false;
 
@@ -90,7 +90,7 @@ async function stopDrive() {
     const [y, m, d] = iso.split("-");
     const formattedDate = `${d}/${m}/${y}`;
 
-    const fuelPrice = await getLocalE10Price();
+    const fuelPrice = Number(localStorage.getItem("fuelPrice"));
 
     const driveSummary = {
         date: formattedDate,
@@ -415,12 +415,20 @@ switcherBtn.addEventListener("click", toggleDarkMode);
 
 async function updateFuelPrice() {
         try {
-            const price = await getLocalE10Price();
+            const location = JSON.parse(localStorage.getItem("location"));
+            console.log(location.latitude, location.longitude);
+
+            const price = await getLocalE10Price(
+                location.latitude,
+                location.longitude
+            );
 
             if (price == null) {
                 console.warn("Fuel price unavailable");
                 return;
             }
+
+            localStorage.setItem("fuelPrice", price);
 
             const fuelPriceText = document.getElementById("fuel-price");
             if (!fuelPriceText) return;
@@ -432,9 +440,9 @@ async function updateFuelPrice() {
         }
 }
 
-async function getLocalE10Price() {
+async function getLocalE10Price(lat, lng) {
     const res = await fetch(
-        `https://fuel-price-proxy.archie-moon04.workers.dev/?lat=50.82189301841593&lng=-0.39384163834533775&radius=10`
+        `https://fuel-price-proxy.archie-moon04.workers.dev/?lat=${lat}&lng=${lng}&radius=10`
     );
     const data = await res.json();
     return data.avgE10PencePerLitre;
@@ -615,11 +623,7 @@ function deleteDriveByStartTime(startTime) {
 
 //////////////////////// Stats Page ////////////////////////
 
-const resetBtn = document.getElementById("reset-btn")
-resetBtn.addEventListener("click", () => {
-    localStorage.clear();
-    refreshPages();
-});
+
 
 //////////////////////// Profile Page ////////////////////////
 
@@ -663,6 +667,42 @@ function updateProfileStats() {
         totalHoursText.textContent = totalHours.toFixed(2);
     }
 }
+
+const setHomeBtn = document.getElementById("set-profile-home-btn");
+setHomeBtn.addEventListener("click", () => {
+    const confirmed = confirm(
+        "Are you sure you want to set your current location as your Home?\n\nThis is used to obtain your local fuel price."
+    );
+
+    if (!confirmed) return;
+
+    navigator.geolocation.getCurrentPosition(pos => {
+        const location = {
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude
+        };
+
+        localStorage.setItem("location", JSON.stringify(location));
+        updateFuelPrice();
+    })
+});
+
+const resetBtn = document.getElementById("reset-profile-btn")
+resetBtn.addEventListener("click", () => {
+    const confirmed = confirm(
+        "Are you sure you want to reset your profile?\n\nThis will delete all saved data."
+    );
+
+    if (!confirmed) return;
+
+    localStorage.clear();
+    refreshPages();
+
+    const fuelPriceText = document.getElementById("fuel-price");
+    if (fuelPriceText) {
+        fuelPriceText.textContent = "000.0";
+    }
+});
 
 ////////////////////////
 // Bottom Nav btns
