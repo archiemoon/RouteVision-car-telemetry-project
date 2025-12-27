@@ -624,7 +624,188 @@ function deleteDriveByStartTime(startTime) {
 
 //////////////////////// Stats Page ////////////////////////
 
+function normalizeDrive(drive) {
+    return {
+        startTime: Number(drive.startTime),
+        distanceMiles: Number(drive.distanceMiles),
+        durationSeconds: Number(drive.durationSeconds),
+        fuelUsedLitres: Number(drive.fuelUsedLitres),
+        fuelPrice: Number(drive.fuelPrice),
+        averageSpeedMPH: Number(drive.averageSpeedMPH),
+        estimatedMPG: Number(drive.estimatedMPG)
+    };
+}
 
+function getDrivesForPeriod(period) {
+    const drives =
+        (JSON.parse(localStorage.getItem("drives")) || [])
+            .map(normalizeDrive);
+
+    if (period === "lifetime") return drives;
+
+    const now = Date.now();
+    let cutoff;
+
+    switch (period) {
+        case "week":
+            cutoff = now - 7 * 24 * 60 * 60 * 1000;
+            break;
+        case "month":
+            cutoff = now - 30 * 24 * 60 * 60 * 1000;
+            break;
+        case "year":
+            cutoff = now - 365 * 24 * 60 * 60 * 1000;
+            break;
+        default:
+            return drives;
+    }
+
+    return drives.filter(d => d.startTime >= cutoff);
+}
+
+function calculateStats(drives) {
+    if (drives.length === 0) {
+        return {
+            drives: 0,
+            miles: 0,
+            hours: 0,
+            avgMPG: 0,
+            avgSpeed: 0,
+            fuelCost: 0
+        };
+    }
+
+    let totalMiles = 0;
+    let totalSeconds = 0;
+    let totalFuelLitres = 0;
+    let totalFuelCost = 0;
+
+    drives.forEach(d => {
+        const miles = Number(d.distanceMiles);
+        const seconds = Number(d.durationSeconds);
+        const litres = Number(d.fuelUsedLitres);
+        const pricePence = Number(d.fuelPrice);
+
+        totalMiles += Number.isFinite(miles) ? miles : 0;
+        totalSeconds += Number.isFinite(seconds) ? seconds : 0;
+        totalFuelLitres += Number.isFinite(litres) ? litres : 0;
+
+        if (Number.isFinite(litres) && Number.isFinite(pricePence)) {
+            totalFuelCost += litres * (pricePence / 100);
+        }
+    });
+
+    const hours = totalSeconds / 3600;
+
+    return {
+        drives: drives.length,
+        miles: totalMiles,
+        hours,
+        avgMPG:
+            totalFuelLitres > 0
+                ? totalMiles / (totalFuelLitres * 0.219969)
+                : 0,
+        avgSpeed:
+            hours > 0 ? totalMiles / hours : 0,
+        fuelCost: totalFuelCost
+    };
+}
+
+function getStats(period) {
+    return calculateStats(getDrivesForPeriod(period));
+}
+
+// ---------- UI helpers ----------
+
+function createStatItem(label, value) {
+    const item = document.createElement("div");
+    item.style.display = "flex";
+    item.style.flexDirection = "column";
+    item.style.alignItems = "center";
+    item.style.justifyContent = "center";
+
+    const valueEl = document.createElement("div");
+    valueEl.textContent = value;
+    valueEl.style.fontSize = "20px";
+    valueEl.style.fontWeight = "800";
+    valueEl.style.color = "var(--text-main)";
+
+    const labelEl = document.createElement("div");
+    labelEl.textContent = label;
+    labelEl.style.fontSize = "14px";
+    labelEl.style.fontWeight = "500";
+    labelEl.style.color = "var(--text-accent)";
+
+    item.appendChild(valueEl);
+    item.appendChild(labelEl);
+
+    return item;
+}
+
+function createStatsCard(period, titleText) {
+    const stats = getStats(period);
+
+    const cell = document.createElement("div");
+    cell.style.position = "relative";
+    cell.style.height = "240px";
+    cell.style.borderRadius = "15px";
+    cell.style.display = "flex";
+    cell.style.alignItems = "center";
+    cell.style.boxShadow = "0 0px 10px 0 var(--shadow)";
+    cell.style.margin = "16px 2px";
+    cell.style.padding = "0 12px";
+
+    const title = document.createElement("div");
+    title.textContent = titleText;
+    title.style.position = "absolute";
+    title.style.top = "6px";
+    title.style.left = "50%";
+    title.style.color = "var(--text-main)";
+    title.style.transform = "translateX(-50%)";
+    title.style.fontSize = "22px";
+    title.style.fontWeight = "600";
+
+    cell.appendChild(title);
+
+    const innerCell = document.createElement("div");
+    innerCell.style.height = "165px";
+    innerCell.style.width = "100%";
+    innerCell.style.borderRadius = "15px";
+    innerCell.style.display = "grid";
+    innerCell.style.gridTemplateColumns = "1fr 1fr";
+    innerCell.style.gridTemplateRows = "1fr 1fr 1fr";
+    innerCell.style.gap = "8px";
+    innerCell.style.margin = "140px 2px 120px 2px";
+    innerCell.style.backgroundColor = "var(--internal-container)";
+    innerCell.style.boxShadow = "0 0px 4px 0 var(--shadow)";
+    innerCell.style.padding = "12px";
+
+    innerCell.appendChild(createStatItem("Drives", stats.drives));
+    innerCell.appendChild(createStatItem("Miles", stats.miles.toFixed(1)));
+    innerCell.appendChild(createStatItem("Hours", stats.hours.toFixed(2)));
+    innerCell.appendChild(createStatItem("Avg Speed", stats.avgSpeed.toFixed(1) + " mph"));
+    innerCell.appendChild(createStatItem("Avg MPG", stats.avgMPG.toFixed(1)));
+    innerCell.appendChild(createStatItem("Fuel Cost", "£" + stats.fuelCost.toFixed(2)));
+
+    cell.appendChild(innerCell);
+
+    return cell;
+}
+
+// ---------- Main render ----------
+
+function renderStats() {
+    const statsPage = document.getElementById("stats-page-content");
+    statsPage.innerHTML = "";
+
+    statsPage.style.paddingTop = "40px";
+    statsPage.style.paddingBottom = "40px";
+
+    statsPage.appendChild(createStatsCard("week", "Weekly Stats"));
+    statsPage.appendChild(createStatsCard("month", "Monthly Stats"));
+    statsPage.appendChild(createStatsCard("year", "Yearly Stats"));
+    statsPage.appendChild(createStatsCard("lifetime", "Lifetime Stats"));
+}
 
 //////////////////////// Profile Page ////////////////////////
 
@@ -743,6 +924,7 @@ document.getElementById("compass-btn")
 document.getElementById("stats-btn")
 .addEventListener("click", () => {
     showPage("statistics-page");
+    renderStats();
     setActiveNav("stats-btn");
 });
 
@@ -757,7 +939,7 @@ function refreshPages() {
     renderRecentTrips();
     //renderStatsPreview();
     renderAllTrips();
-    //renderStats();
+    renderStats();
     updateProfileStats();
 }
 
