@@ -5,12 +5,6 @@ renderHomePage()
 ////////////////////////
 // Data Tracking Logic
 ////////////////////////
-// ============================================================
-// LIVE DRIVE TRACKING + FUEL MODEL (UPDATED + COPY/PASTE READY)
-// - Keeps your existing functionality
-// - Adds: speed smoothing for acceleration, steady-cruise bonus,
-//         more realistic warm-up decay, and smoother speed efficiency
-// ============================================================
 
 let liveDrive = null;
 let timeInterval = null;
@@ -22,17 +16,16 @@ const LITRES_PER_100KM = 5.3;
 // Idle consumption
 const IDLE_LITRES_PER_HOUR = 0.8; // realistic range: 0.5–1.0
 
-// Calibrate MPG output to your car (keep using your existing value)
+// Calibrate MPG output to your car
 const MPG_CALIBRATION = 0.985;
 
-// --- New tuning knobs (start here, adjust later if needed) ---
+// --- Tuning knobs (adjust later if needed) ---
 const SPEED_SMOOTH_WINDOW = 10;      // last N GPS samples used for smoothing accel
 const STEADY_CRUISE_MULT = 0.84;     // 0.78–0.90 (lower = more efficient cruising)
 const OPTIMAL_SPEED_KPH = 85;        // ~53 mph sweet spot
 const SPEED_EFF_STRENGTH = 0.15;     // higher = bigger penalty away from optimal
 const COASTING_REDUCTION = 0.70;     // 0.6–0.85 (closer to 1 = less “free” coasting)
 
-// -------------------- Core drive lifecycle --------------------
 
 function startDrive() {
     const now = Date.now();
@@ -42,7 +35,7 @@ function startDrive() {
         lastSpeedKph: 0,
         recentSpeeds: [],
         lastGpsTime: null,
-        prevSmoothSpeedKph: null, // <-- changed: track smoothed speed for acceleration
+        prevSmoothSpeedKph: null,
         activeSeconds: 0,
         distanceKm: 0,
         fuelUsedLitres: 0
@@ -196,7 +189,7 @@ function handlePositionUpdate(position) {
 
     if (!liveDrive.lastGpsTime) {
         liveDrive.lastGpsTime = now;
-        liveDrive.prevSmoothSpeedKph = getSmoothedSpeedKph(); // init smoothed speed
+        liveDrive.prevSmoothSpeedKph = getSmoothedSpeedKph();
         return;
     }
 
@@ -205,7 +198,7 @@ function handlePositionUpdate(position) {
 
     updateLiveFromSpeed(speedKph, deltaSeconds);
 
-    // Debug UI (same as your original)
+    // Debug UI
     const dbgTime = document.getElementById("dbg-time");
     const dbgSpeed = document.getElementById("dbg-speed");
     const dbgDist = document.getElementById("dbg-distance");
@@ -242,7 +235,7 @@ function updateLiveFromSpeed(speedKphRaw, deltaSeconds) {
     const prevDistance = liveDrive.distanceKm;
 
     // Use smoothed speed for acceleration + cruise detection
-    const speedKph = speedKphRaw;              // keep raw for distance gating
+    const speedKph = speedKphRaw;  // keep raw for distance gating
     const smoothSpeedKph = getSmoothedSpeedKph();
 
     // ---- ACCELERATION (smoothed) ----
@@ -276,7 +269,7 @@ function updateLiveFromSpeed(speedKphRaw, deltaSeconds) {
     const speedEfficiency = 1 + (diff / OPTIMAL_SPEED_KPH) * SPEED_EFF_STRENGTH;
     fuelMultiplier *= speedEfficiency;
 
-    // ---- Steady cruising bonus (your missing piece) ----
+    // ---- Steady cruising bonus ----
     // Reward gentle, steady throttle in the 70–105 kph band (A-road/dual carriageway cruising)
     const isSteadyCruise =
         smoothSpeedKph >= 70 &&
