@@ -5,12 +5,36 @@ renderHomePage()
 ////////////////////////
 // Data Tracking Logic
 ////////////////////////
+// ============================================================
+// LIVE DRIVE TRACKING + FUEL MODEL (UPDATED + COPY/PASTE READY)
+// - Keeps your existing functionality
+// - Adds: speed smoothing for acceleration, steady-cruise bonus,
+//         more realistic warm-up decay, and smoother speed efficiency
+// ============================================================
 
 let liveDrive = null;
 let timeInterval = null;
 
+// -------------------- Tunable constants --------------------
+// Baseline economy model
+const LITRES_PER_100KM = 5.3;
+
+// Idle consumption
+const IDLE_LITRES_PER_HOUR = 0.8; // realistic range: 0.5–1.0
+
+// Calibrate MPG output to your car (keep using your existing value)
+const MPG_CALIBRATION = 0.985;
+
+// --- New tuning knobs (start here, adjust later if needed) ---
+const SPEED_SMOOTH_WINDOW = 10;      // last N GPS samples used for smoothing accel
+const STEADY_CRUISE_MULT = 0.84;     // 0.78–0.90 (lower = more efficient cruising)
+const OPTIMAL_SPEED_KPH = 85;        // ~53 mph sweet spot
+const SPEED_EFF_STRENGTH = 0.15;     // higher = bigger penalty away from optimal
+const COASTING_REDUCTION = 0.70;     // 0.6–0.85 (closer to 1 = less “free” coasting)
+
+// -------------------- Core drive lifecycle --------------------
+
 function startDrive() {
-    //Time in ms from epoch
     const now = Date.now();
 
     liveDrive = {
@@ -18,7 +42,7 @@ function startDrive() {
         lastSpeedKph: 0,
         recentSpeeds: [],
         lastGpsTime: null,
-        prevSpeedKph: null,
+        prevSmoothSpeedKph: null, // <-- changed: track smoothed speed for acceleration
         activeSeconds: 0,
         distanceKm: 0,
         fuelUsedLitres: 0
@@ -39,8 +63,7 @@ function startActiveTimer() {
         // IDLE FUEL (time-based)
         if (liveDrive.lastSpeedKph < 3) {
             const deltaHours = 1 / 3600;
-            liveDrive.fuelUsedLitres +=
-                IDLE_LITRES_PER_HOUR * deltaHours;
+            liveDrive.fuelUsedLitres += IDLE_LITRES_PER_HOUR * deltaHours;
         }
     }, 1000);
 }
@@ -50,7 +73,6 @@ function stopActiveTimer() {
     timeInterval = null;
 }
 
-
 function updateDistance(speedKph, deltaSeconds) {
     const kmPerSecond = speedKph / 3600;
     liveDrive.distanceKm += kmPerSecond * deltaSeconds;
@@ -58,18 +80,11 @@ function updateDistance(speedKph, deltaSeconds) {
 
 function getAverageSpeed() {
     if (!liveDrive || liveDrive.activeSeconds === 0) return 0;
-
     const hours = liveDrive.activeSeconds / 3600;
-    return liveDrive.distanceKm / hours;
+    return liveDrive.distanceKm / hours; // kph
 }
 
-//////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////
-const LITRES_PER_100KM = 5.3;
-const IDLE_LITRES_PER_HOUR = 0.8; // realistic range: 0.5–1.0
-const MPG_CALIBRATION = 0.985;
-//////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////
+// -------------------- MPG calc --------------------
 
 function calculateMPG(distanceKm, fuelLitres) {
     if (fuelLitres === 0) return 0;
@@ -78,19 +93,20 @@ function calculateMPG(distanceKm, fuelLitres) {
     const gallons = fuelLitres * 0.219969;
 
     const rawMpg = miles / gallons;
-
     return rawMpg * MPG_CALIBRATION;
 }
 
+// -------------------- Stop + save --------------------
+
 function stopDrive() {
-    stopActiveTimer()
+    stopActiveTimer();
     appState.paused = false;
 
-    const iso = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+    const iso = new Date().toISOString().split("T")[0];
     const [y, m, d] = iso.split("-");
     const formattedDate = `${d}/${m}/${y}`;
 
-    const fuelPricePerL = Number(localStorage.getItem("fuelPrice"));
+    const fuelPricePerL = Number(localStorage.getItem("fuelPrice")) || 0;
     const fuelCost = liveDrive.fuelUsedLitres * (fuelPricePerL / 100);
 
     const driveSummary = {
@@ -98,13 +114,10 @@ function stopDrive() {
         startTime: liveDrive.startTime,
         durationSeconds: Math.floor(liveDrive.activeSeconds),
         distanceMiles: (liveDrive.distanceKm * 0.621371).toFixed(1),
-        averageSpeedMPH: (getAverageSpeed()* 0.621371).toFixed(1),
+        averageSpeedMPH: (getAverageSpeed() * 0.621371).toFixed(1),
         fuelUsedLitres: liveDrive.fuelUsedLitres.toFixed(3),
-        fuelCost: fuelCost,
-        estimatedMPG: calculateMPG(
-            liveDrive.distanceKm,
-            liveDrive.fuelUsedLitres
-        ).toFixed(1)
+        fuelCost: Number.isFinite(fuelCost) ? fuelCost : 0,
+        estimatedMPG: calculateMPG(liveDrive.distanceKm, liveDrive.fuelUsedLitres).toFixed(1)
     };
 
     const drives = JSON.parse(localStorage.getItem("drives")) || [];
@@ -114,9 +127,9 @@ function stopDrive() {
     liveDrive = null;
 }
 
-////////////////////////
-// Live GPS and API logic
-////////////////////////
+// ============================================================
+// GPS logic
+// ============================================================
 
 navigator.geolocation.getCurrentPosition(
     () => console.log("GPS allowed"),
@@ -132,11 +145,11 @@ function startGPS() {
     geoWatchId = navigator.geolocation.watchPosition(
         handlePositionUpdate,
         handleGPSError,
-    {
-        enableHighAccuracy: true,
-        maximumAge: 1000,
-        timeout: 10000
-    }
+        {
+            enableHighAccuracy: true,
+            maximumAge: 1000,
+            timeout: 10000
+        }
     );
 }
 
@@ -144,24 +157,24 @@ function handleGPSError(error) {
     console.error("GPS error:", error);
 
     switch (error.code) {
-    case error.PERMISSION_DENIED:
-        console.error("User denied GPS permission");
-        break;
-    case error.POSITION_UNAVAILABLE:
-        console.error("Position unavailable");
-        break;
-    case error.TIMEOUT:
-        console.error("GPS timeout");
-        break;
-    default:
-        console.error("Unknown GPS error");
+        case error.PERMISSION_DENIED:
+            console.error("User denied GPS permission");
+            break;
+        case error.POSITION_UNAVAILABLE:
+            console.error("Position unavailable");
+            break;
+        case error.TIMEOUT:
+            console.error("GPS timeout");
+            break;
+        default:
+            console.error("Unknown GPS error");
     }
 }
 
 function stopGPS() {
     if (geoWatchId !== null) {
-    navigator.geolocation.clearWatch(geoWatchId);
-    geoWatchId = null;
+        navigator.geolocation.clearWatch(geoWatchId);
+        geoWatchId = null;
     }
 }
 
@@ -173,21 +186,17 @@ function handlePositionUpdate(position) {
     if (speedMps === null) return;
 
     const speedKph = speedMps * 3.6;
-
     liveDrive.lastSpeedKph = speedKph;
 
+    // Store recent speeds for smoothing
     liveDrive.recentSpeeds.push(speedKph);
-
-    // keep last 60 seconds (assuming ~1s GPS)
-    if (liveDrive.recentSpeeds.length > 60) {
-        liveDrive.recentSpeeds.shift();
-    }
+    if (liveDrive.recentSpeeds.length > 60) liveDrive.recentSpeeds.shift();
 
     const now = position.timestamp;
 
     if (!liveDrive.lastGpsTime) {
         liveDrive.lastGpsTime = now;
-        liveDrive.prevSpeedKph = speedKph;
+        liveDrive.prevSmoothSpeedKph = getSmoothedSpeedKph(); // init smoothed speed
         return;
     }
 
@@ -196,96 +205,115 @@ function handlePositionUpdate(position) {
 
     updateLiveFromSpeed(speedKph, deltaSeconds);
 
+    // Debug UI (same as your original)
+    const dbgTime = document.getElementById("dbg-time");
+    const dbgSpeed = document.getElementById("dbg-speed");
+    const dbgDist = document.getElementById("dbg-distance");
+    const dbgFuel = document.getElementById("dbg-fuel");
+    const dbgAvg = document.getElementById("dbg-avg-speed");
+    const dbgMpg = document.getElementById("dbg-mpg");
 
-    ////////////////
-    document.getElementById("dbg-time").textContent =
-        liveDrive.activeSeconds.toFixed(1);
-
-    document.getElementById("dbg-speed").textContent =
-        (speedMps*2.23694).toFixed(1);
-
-    document.getElementById("dbg-distance").textContent =
-        (liveDrive.distanceKm * 0.621371).toFixed(1);
-
-    document.getElementById("dbg-fuel").textContent =
-        liveDrive.fuelUsedLitres.toFixed(3);
-
-    document.getElementById("dbg-avg-speed").textContent =
-        (getAverageSpeed() * 0.621371).toFixed(1);
-
-    document.getElementById("dbg-mpg").textContent =
-        (calculateMPG(
-            liveDrive.distanceKm,
-            liveDrive.fuelUsedLitres
-        ).toFixed(1));
-    ////////////////
+    if (dbgTime) dbgTime.textContent = liveDrive.activeSeconds.toFixed(1);
+    if (dbgSpeed) dbgSpeed.textContent = (speedMps * 2.23694).toFixed(1);
+    if (dbgDist) dbgDist.textContent = (liveDrive.distanceKm * 0.621371).toFixed(1);
+    if (dbgFuel) dbgFuel.textContent = liveDrive.fuelUsedLitres.toFixed(3);
+    if (dbgAvg) dbgAvg.textContent = (getAverageSpeed() * 0.621371).toFixed(1);
+    if (dbgMpg) dbgMpg.textContent = calculateMPG(liveDrive.distanceKm, liveDrive.fuelUsedLitres).toFixed(1);
 }
 
-function updateLiveFromSpeed(speedKph, deltaSeconds) {
+// ============================================================
+// Fuel model updates (UPDATED)
+// ============================================================
+
+// Smooth speed to reduce “phantom acceleration” from GPS noise
+function getSmoothedSpeedKph() {
+    if (!liveDrive || liveDrive.recentSpeeds.length === 0) return 0;
+
+    const n = Math.min(SPEED_SMOOTH_WINDOW, liveDrive.recentSpeeds.length);
+    const slice = liveDrive.recentSpeeds.slice(-n);
+
+    const avg = slice.reduce((a, b) => a + b, 0) / n;
+    return avg;
+}
+
+function updateLiveFromSpeed(speedKphRaw, deltaSeconds) {
     if (deltaSeconds <= 0) return;
 
     const prevDistance = liveDrive.distanceKm;
 
-    // ---- ACCELERATION (proxy for throttle) ----
-    let acceleration = 0;
-    if (liveDrive.prevSpeedKph !== null) {
-        acceleration = (speedKph - liveDrive.prevSpeedKph) / deltaSeconds;
+    // Use smoothed speed for acceleration + cruise detection
+    const speedKph = speedKphRaw;              // keep raw for distance gating
+    const smoothSpeedKph = getSmoothedSpeedKph();
+
+    // ---- ACCELERATION (smoothed) ----
+    let acceleration = 0; // kph/s
+    if (liveDrive.prevSmoothSpeedKph !== null) {
+        acceleration = (smoothSpeedKph - liveDrive.prevSmoothSpeedKph) / deltaSeconds;
         acceleration = Math.max(-5, Math.min(acceleration, 5));
     }
-
-    liveDrive.prevSpeedKph = speedKph;
-
-    // ---- COASTING / ENGINE BRAKING ----
-    const isCoasting =
-        speedKph > 20 && acceleration < -0.5;
+    liveDrive.prevSmoothSpeedKph = smoothSpeedKph;
 
     // ---- DISTANCE ----
     if (speedKph >= 2) {
         updateDistance(speedKph, deltaSeconds);
     }
 
-    const deltaDistanceKm =
-        liveDrive.distanceKm - prevDistance;
+    const deltaDistanceKm = liveDrive.distanceKm - prevDistance;
+
+    // ---- COASTING / ENGINE BRAKING ----
+    const isCoasting = smoothSpeedKph > 20 && acceleration < -0.5;
 
     // ---- FUEL MULTIPLIER ----
     let fuelMultiplier = 1;
 
-    // Acceleration penalty
-    if (acceleration > 1.5) fuelMultiplier = 1.4;
-    else if (acceleration > 0.5) fuelMultiplier = 1.15;
+    // Acceleration penalty (use smoothed accel)
+    if (acceleration > 1.5) fuelMultiplier *= 1.35;
+    else if (acceleration > 0.5) fuelMultiplier *= 1.12;
 
-    // Speed efficiency curve
-    if (speedKph < 30) fuelMultiplier *= 1.3;
-    else if (speedKph > 120) fuelMultiplier *= 1.25;
+    // ---- Speed efficiency (smooth "bowl" curve around optimal speed) ----
+    // 1.0 near OPTIMAL_SPEED_KPH, gradually worse as you move away
+    const diff = Math.abs(smoothSpeedKph - OPTIMAL_SPEED_KPH);
+    const speedEfficiency = 1 + (diff / OPTIMAL_SPEED_KPH) * SPEED_EFF_STRENGTH;
+    fuelMultiplier *= speedEfficiency;
 
-    // ---- FUEL USE ----
-    if (isCoasting && speedKph > 10) {
-    fuelMultiplier *= 0.6; // reduced, not zero
+    // ---- Steady cruising bonus (your missing piece) ----
+    // Reward gentle, steady throttle in the 70–105 kph band (A-road/dual carriageway cruising)
+    const isSteadyCruise =
+        smoothSpeedKph >= 70 &&
+        smoothSpeedKph <= 105 &&
+        Math.abs(acceleration) < 0.15;
+
+    if (isSteadyCruise) {
+        fuelMultiplier *= STEADY_CRUISE_MULT;
     }
 
-    // ---- WARM-UP PENALTY ----
+    // ---- Coasting reduction (reduced fuel flow, not zero) ----
+    if (isCoasting && smoothSpeedKph > 10) {
+        fuelMultiplier *= COASTING_REDUCTION;
+    }
+
+    // ---- Warm-up penalty (distance + time aware) ----
+    // Warm-up fades faster if you've covered distance (engine under load)
     let warmupMultiplier = 1;
+    const minutes = liveDrive.activeSeconds / 60;
+    const km = liveDrive.distanceKm;
 
-    // First 5 minutes = less efficient
-    if (liveDrive.activeSeconds < 180) warmupMultiplier = 1.3  ;
-    else if (liveDrive.activeSeconds < 300) warmupMultiplier = 1.15;
+    if (minutes < 5 && km < 5) warmupMultiplier = 1.22;
+    else if (minutes < 8 && km < 8) warmupMultiplier = 1.10;
 
-    // ---- URBAN PENALTY ----
+    // ---- Urban penalty (only when consistently slow) ----
     let urbanMultiplier = 1;
+    const avgSpeedKphRecent = getRecentAverageSpeed();
 
-    const avgSpeedKph = getRecentAverageSpeed();
-
-    // Only penalise when actually slow
-    if (avgSpeedKph < 25 && speedKph < 35) {
-        urbanMultiplier = 1.2;
+    if (avgSpeedKphRecent < 25 && smoothSpeedKph < 35) {
+        urbanMultiplier = 1.18;
     }
 
-    const combinedMultiplier =
-    fuelMultiplier * warmupMultiplier * urbanMultiplier;
-
+    const combinedMultiplier = fuelMultiplier * warmupMultiplier * urbanMultiplier;
     const cappedMultiplier = Math.min(combinedMultiplier, 2.0);
 
-    if (speedKph >= 2) {
+    // ---- FUEL USE ----
+    if (speedKph >= 2 && deltaDistanceKm > 0) {
         liveDrive.fuelUsedLitres +=
             (deltaDistanceKm / 100) *
             LITRES_PER_100KM *
@@ -294,11 +322,9 @@ function updateLiveFromSpeed(speedKph, deltaSeconds) {
 }
 
 function getRecentAverageSpeed() {
-    if (liveDrive.recentSpeeds.length === 0) return 0;
-    return liveDrive.recentSpeeds.reduce((a, b) => a + b, 0) /
-    liveDrive.recentSpeeds.length;
+    if (!liveDrive || liveDrive.recentSpeeds.length === 0) return 0;
+    return liveDrive.recentSpeeds.reduce((a, b) => a + b, 0) / liveDrive.recentSpeeds.length;
 }
-
 
 /////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////
