@@ -90,7 +90,8 @@ function stopDrive() {
     const [y, m, d] = iso.split("-");
     const formattedDate = `${d}/${m}/${y}`;
 
-    const fuelPrice = Number(localStorage.getItem("fuelPrice"));
+    const fuelPricePerL = Number(localStorage.getItem("fuelPrice"));
+    const fuelCost = liveDrive.fuelUsedLitres * (fuelPricePerL / 100);
 
     const driveSummary = {
         date: formattedDate,
@@ -99,7 +100,7 @@ function stopDrive() {
         distanceMiles: (liveDrive.distanceKm * 0.621371).toFixed(1),
         averageSpeedMPH: (getAverageSpeed()* 0.621371).toFixed(1),
         fuelUsedLitres: liveDrive.fuelUsedLitres.toFixed(3),
-        fuelPrice: fuelPrice.toFixed(1),
+        fuelCost: fuelCost,
         estimatedMPG: calculateMPG(
             liveDrive.distanceKm,
             liveDrive.fuelUsedLitres
@@ -352,9 +353,9 @@ startBtn.addEventListener("click", () => {
     startDrive();
     startGPS();
 });
-stopBtn.addEventListener("click", async () => {
+stopBtn.addEventListener("click", () => {
     stopGPS();
-    await stopDrive();
+    stopDrive();
     resetPauseIcon();
     exitDrivingMode();
     refreshPages();
@@ -573,14 +574,14 @@ function renderAllTrips() {
         const line2 = document.createElement("span");
 
         const price =
-            Number.isFinite(drive.fuelPrice)
-                ? drive.fuelPrice
-                : 137.9; // if no price saved, revert to fixed value
+            Number.isFinite(drive.fuelCost)
+                ? drive.fuelCost
+                : (drive.fuelUsedLitres * (137.9/100)); // if no price saved, revert to fixed value
 
         line2.style.whiteSpace = "pre-line";
         line2.textContent = 
             `${formatDuration(i)} | ${drive.distanceMiles}mi | ${drive.averageSpeedMPH}mph
-            ${drive.estimatedMPG}mpg | ${drive.fuelUsedLitres}l | £${(drive.fuelUsedLitres * (price/100)).toFixed(2)}`;
+            ${drive.estimatedMPG}mpg | ${drive.fuelUsedLitres}l | £${price.toFixed(2)}`;
         line2.style.fontSize = "15px";
         line2.style.fontWeight = "600";
         line2.style.color = "var(--text-accent)";
