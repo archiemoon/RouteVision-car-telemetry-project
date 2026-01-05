@@ -26,6 +26,16 @@ const OPTIMAL_SPEED_KPH = 85;        // ~53 mph sweet spot
 const SPEED_EFF_STRENGTH = 0.15;     // higher = bigger penalty away from optimal
 const COASTING_REDUCTION = 0.70;     // 0.6–0.85 (closer to 1 = less “free” coasting)
 
+// --- NEW: allow very low fuel during light-load cruise / downhill-overrun-like moments ---
+const MIN_L_PER_100KM_CRUISE = 1.2;   // stable high-speed cruise can be very low
+const MIN_L_PER_100KM_OVERUN = 0.25;  // near-fuel-cut-ish on overrun/downhill
+
+// --- NEW: stability detection tuning ---
+const STABLE_SPEED_STD_KPH = 0.8;     // lower = stricter “stable speed”
+const STABLE_ACCEL_KPHPS = 0.08;      // kph/s
+const LIGHTLOAD_MIN_SPEED_KPH = 55;   // only treat as light-load when above this speed
+const OVERRUN_MIN_SPEED_KPH = 35;     // only treat as overrun-like when above this speed
+
 
 function startDrive() {
     const now = Date.now();
@@ -181,7 +191,7 @@ function handlePositionUpdate(position) {
     const speedKph = speedMps * 3.6;
     liveDrive.lastSpeedKph = speedKph;
 
-    // Store recent speeds for smoothing
+    // Store recent speeds for smoothing / stability
     liveDrive.recentSpeeds.push(speedKph);
     if (liveDrive.recentSpeeds.length > 60) liveDrive.recentSpeeds.shift();
 
@@ -215,7 +225,7 @@ function handlePositionUpdate(position) {
 }
 
 // ============================================================
-// Fuel model updates (UPDATED)
+// Fuel model updates (UPDATED + NEW LOW-LOAD IMPROVEMENTS)
 // ============================================================
 
 // Smooth speed to reduce “phantom acceleration” from GPS noise
@@ -227,6 +237,44 @@ function getSmoothedSpeedKph() {
 
     const avg = slice.reduce((a, b) => a + b, 0) / n;
     return avg;
+}
+
+// NEW: speed standard deviation over a short window (stability detector)
+function getSpeedStdKph(window = 10) {
+    if (!liveDrive || liveDrive.recentSpeeds.length < 2) return 999;
+
+    const n = Math.min(window, liveDrive.recentSpeeds.length);
+    const xs = liveDrive.recentSpeeds.slice(-n);
+
+    const mean = xs.reduce((a, b) => a + b, 0) / n;
+    const variance = xs.reduce((acc, x) => acc + (x - mean) * (x - mean), 0) / n;
+
+    return Math.sqrt(variance);
+}
+
+// NEW: recent average speed over a SHORT window (so “urban” doesn’t get diluted by older data)
+function getRecentAverageSpeedShort(window = 12) {
+    if (!liveDrive || liveDrive.recentSpeeds.length === 0) return 0;
+
+    const n = Math.min(window, liveDrive.recentSpeeds.length);
+    const xs = liveDrive.recentSpeeds.slice(-n);
+
+    return xs.reduce((a, b) => a + b, 0) / n;
+}
+
+// NEW: smooth warm-up penalty (no step-changes)
+function getWarmupMultiplier() {
+    // time and distance both matter; whichever is “less warmed up” dominates
+    const tMin = liveDrive.activeSeconds / 60;
+    const km = liveDrive.distanceKm;
+
+    // Decay curves (tune these constants if needed)
+    const timeFactor = Math.exp(-tMin / 6); // ~6 min time constant
+    const distFactor = Math.exp(-km / 4);   // ~4 km distance constant
+
+    // Up to +24% at the very start, smoothly decays toward 1.0
+    const penalty = 0.24 * Math.max(timeFactor, distFactor);
+    return 1 + penalty;
 }
 
 function updateLiveFromSpeed(speedKphRaw, deltaSeconds) {
@@ -252,8 +300,26 @@ function updateLiveFromSpeed(speedKphRaw, deltaSeconds) {
     }
 
     const deltaDistanceKm = liveDrive.distanceKm - prevDistance;
+    if (deltaDistanceKm <= 0) return;
 
-    // ---- COASTING / ENGINE BRAKING ----
+    // ---- Stability / low-load detection ----
+    const speedStd = getSpeedStdKph(10);
+    const isStable =
+        speedStd < STABLE_SPEED_STD_KPH &&
+        Math.abs(acceleration) < STABLE_ACCEL_KPHPS;
+
+    // “Barely using fuel at 50mph on flat / slight downhill” case
+    const isLightLoadCruise =
+        smoothSpeedKph > LIGHTLOAD_MIN_SPEED_KPH &&
+        isStable;
+
+    // “Overrun/downhill fuel-cut-ish” case:
+    // catches classic decel AND “downhill slight accel while stable”
+    const isOverrunLike =
+        smoothSpeedKph > OVERRUN_MIN_SPEED_KPH &&
+        (acceleration < -0.25 || (isStable && acceleration < 0.25));
+
+    // ---- COASTING / ENGINE BRAKING (your original signal) ----
     const isCoasting = smoothSpeedKph > 20 && acceleration < -0.5;
 
     // ---- FUEL MULTIPLIER ----
@@ -281,39 +347,47 @@ function updateLiveFromSpeed(speedKphRaw, deltaSeconds) {
     }
 
     // ---- Coasting reduction (reduced fuel flow, not zero) ----
+    // (kept, but now the “really low fuel” cases are handled by the clamps below)
     if (isCoasting && smoothSpeedKph > 10) {
         fuelMultiplier *= COASTING_REDUCTION;
     }
 
-    // ---- Warm-up penalty (distance + time aware) ----
-    // Warm-up fades faster if you've covered distance (engine under load)
-    let warmupMultiplier = 1;
-    const minutes = liveDrive.activeSeconds / 60;
-    const km = liveDrive.distanceKm;
+    // ---- Warm-up penalty (SMOOTH) ----
+    const warmupMultiplier = getWarmupMultiplier();
 
-    if (minutes < 5 && km < 5) warmupMultiplier = 1.22;
-    else if (minutes < 8 && km < 8) warmupMultiplier = 1.10;
-
-    // ---- Urban penalty (only when consistently slow) ----
+    // ---- Urban penalty (use SHORT recent window so it reflects current conditions) ----
     let urbanMultiplier = 1;
-    const avgSpeedKphRecent = getRecentAverageSpeed();
+    const avgSpeedKphRecent = getRecentAverageSpeedShort(12);
 
     if (avgSpeedKphRecent < 25 && smoothSpeedKph < 35) {
         urbanMultiplier = 1.18;
     }
 
+    // ---- Combine + cap ----
     const combinedMultiplier = fuelMultiplier * warmupMultiplier * urbanMultiplier;
     const cappedMultiplier = Math.min(combinedMultiplier, 2.0);
 
-    // ---- FUEL USE ----
-    if (speedKph >= 2 && deltaDistanceKm > 0) {
-        liveDrive.fuelUsedLitres +=
-            (deltaDistanceKm / 100) *
-            LITRES_PER_100KM *
-            cappedMultiplier;
+    // ---- Effective L/100km (NEW clamps for low-load states) ----
+    let effectiveLPer100 = LITRES_PER_100KM * cappedMultiplier;
+
+    // allow much lower consumption during stable cruise
+    if (isLightLoadCruise) {
+        effectiveLPer100 = Math.min(effectiveLPer100, MIN_L_PER_100KM_CRUISE);
     }
+
+    // allow near-fuel-cut-ish during overrun/downhill-like conditions
+    if (isOverrunLike) {
+        effectiveLPer100 = Math.min(effectiveLPer100, MIN_L_PER_100KM_OVERUN);
+    }
+
+    // Safety: never negative / NaN
+    if (!Number.isFinite(effectiveLPer100) || effectiveLPer100 < 0) return;
+
+    // ---- FUEL USE ----
+    liveDrive.fuelUsedLitres += (deltaDistanceKm / 100) * effectiveLPer100;
 }
 
+// Kept for any other parts of your app that might still call it
 function getRecentAverageSpeed() {
     if (!liveDrive || liveDrive.recentSpeeds.length === 0) return 0;
     return liveDrive.recentSpeeds.reduce((a, b) => a + b, 0) / liveDrive.recentSpeeds.length;
