@@ -1009,6 +1009,15 @@ function updateProfileStats() {
     }
 }
 
+const editBtn = document.getElementById("edit-profile-btn")
+resetBtn.addEventListener("click", () => {
+    const confirmed = confirm(
+        "This is an upadte checker button."
+    );
+
+    if (!confirmed) return;
+});
+
 const setHomeBtn = document.getElementById("set-profile-home-btn");
 setHomeBtn.addEventListener("click", () => {
     const confirmed = confirm(
