@@ -1010,7 +1010,7 @@ function updateProfileStats() {
 }
 
 const editBtn = document.getElementById("edit-profile-btn")
-resetBtn.addEventListener("click", () => {
+editBtn.addEventListener("click", () => {
     const confirmed = confirm(
         "This is an upadte checker button."
     );
