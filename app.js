@@ -24,9 +24,12 @@ const STEADY_CRUISE_MULT = 0.84;     // 0.78–0.90 (lower = more efficient crui
 const OPTIMAL_SPEED_KPH = 85;        // ~53 mph sweet spot
 const SPEED_EFF_STRENGTH = 0.15;     // higher = bigger penalty away from optimal
 const COASTING_REDUCTION = 0.70;     // 0.6–0.85 (closer to 1 = less “free” coasting)
+const GENTLE_FLOW_MULT = 0.92;
+const DOWNHILL_PAYBACK_MULT = 0.55;
+
 
 // --- NEW: allow very low fuel during light-load cruise / downhill-overrun-like moments ---
-const MIN_L_PER_100KM_CRUISE = 2.1;   // stable high-speed cruise can be very low
+const MIN_L_PER_100KM_CRUISE = 2.3;   // stable high-speed cruise can be very low
 const MIN_L_PER_100KM_OVERRUN = 0.8;  // near-fuel-cut-ish on overrun/downhill
 
 // --- NEW: stability detection tuning ---
@@ -277,6 +280,18 @@ function getWarmupMultiplier() {
     return 1 + penalty;
 }
 
+function getCruiseSmoothnessFactor(accel, speedStd) {
+    // accel: kph/s, speedStd: kph
+
+    // Normalise into 0–1 range
+    const accelScore = Math.max(0, 1 - Math.abs(accel) / 0.6);
+    const stdScore   = Math.max(0, 1 - speedStd / 1.2);
+
+    // Combined smoothness
+    return Math.min(1, accelScore * stdScore);
+}
+
+
 function updateLiveFromSpeed(speedKphRaw, deltaSeconds) {
     if (deltaSeconds <= 0) return;
 
@@ -310,9 +325,10 @@ function updateLiveFromSpeed(speedKphRaw, deltaSeconds) {
 
     // “Barely using fuel at 50mph on flat / slight downhill” case
     const isLightLoadCruise =
-    smoothSpeedKph > 60 &&
-    isStable &&
-    speedStd < 0.6;
+        smoothSpeedKph > LIGHTLOAD_MIN_SPEED_KPH &&
+        isStable &&
+        speedStd < 0.5 &&
+        Math.abs(acceleration) < 0.05;
 
     // “Overrun/downhill fuel-cut-ish” case:
     // catches classic decel AND “downhill slight accel while stable”
@@ -340,20 +356,47 @@ function updateLiveFromSpeed(speedKphRaw, deltaSeconds) {
 
     // ---- Speed efficiency (smooth "bowl" curve around optimal speed) ----
     // 1.0 near OPTIMAL_SPEED_KPH, gradually worse as you move away
-    const diff = Math.abs(smoothSpeedKph - OPTIMAL_SPEED_KPH);
-    const speedEfficiency = 1 + (diff / OPTIMAL_SPEED_KPH) * SPEED_EFF_STRENGTH;
-    fuelMultiplier *= speedEfficiency;
+    let speedEfficiency = 1;
+
+    // Define a flat-efficiency band (tuneable)
+    const PLATEAU_MIN_KPH = 55;
+    const PLATEAU_MAX_KPH = 75;
+
+    if (smoothSpeedKph < PLATEAU_MIN_KPH) {
+        const diff = PLATEAU_MIN_KPH - smoothSpeedKph;
+        speedEfficiency = 1 + (diff / PLATEAU_MIN_KPH) * SPEED_EFF_STRENGTH;
+    } 
+    else if (smoothSpeedKph > PLATEAU_MAX_KPH) {
+        const diff = smoothSpeedKph - PLATEAU_MAX_KPH;
+        speedEfficiency = 1 + (diff / OPTIMAL_SPEED_KPH) * SPEED_EFF_STRENGTH;
+    }
+
+// else: inside plateau → no penalty
+
+fuelMultiplier *= speedEfficiency;
 
     // ---- Steady cruising bonus ----
-    // Reward gentle, steady throttle in the 70–105 kph band (A-road/dual carriageway cruising)
-    const isSteadyCruise =
-        smoothSpeedKph >= 70 &&
-        smoothSpeedKph <= 105 &&
-        Math.abs(acceleration) < 0.15;
+    const cruiseSmoothness = getCruiseSmoothnessFactor(acceleration, speedStd);
 
-    if (isSteadyCruise) {
-        fuelMultiplier *= STEADY_CRUISE_MULT;
+    if (smoothSpeedKph >= 60 && smoothSpeedKph <= 105) {
+        const cruiseBonus =
+            1 - cruiseSmoothness * (1 - STEADY_CRUISE_MULT);
+
+        fuelMultiplier *= cruiseBonus;
     }
+
+
+    const isGentleFlow =
+        smoothSpeedKph >= 45 &&
+        smoothSpeedKph <= 80 &&
+        Math.abs(acceleration) < 0.35 &&
+        speedStd < 1.2;
+
+    if (isGentleFlow && cruiseSmoothness < 0.5) {
+        fuelMultiplier *= GENTLE_FLOW_MULT;
+    }
+
+
 
     // ---- Coasting reduction (reduced fuel flow, not zero) ----
     // (kept, but now the “really low fuel” cases are handled by the clamps below)
@@ -369,7 +412,7 @@ function updateLiveFromSpeed(speedKphRaw, deltaSeconds) {
     const avgSpeedKphRecent = getRecentAverageSpeedShort(12);
 
     if (avgSpeedKphRecent < 25 && smoothSpeedKph < 35) {
-        urbanMultiplier = 1.18;
+        urbanMultiplier = 1.15;
     }
 
     // ---- Combine + cap ----
@@ -393,13 +436,13 @@ function updateLiveFromSpeed(speedKphRaw, deltaSeconds) {
     if (!Number.isFinite(effectiveLPer100) || effectiveLPer100 < 0) return;
 
     // ---- PAY BACK DOWNHILL CREDIT ON NORMAL DRIVING ----
-    if (!isOverrunLike && liveDrive.downhillCreditKm > 0) {
+    if (!isOverrunLike && liveDrive.downhillCreditKm > 0 && !isLightLoadCruise) {
         const paybackKm = Math.min(deltaDistanceKm, liveDrive.downhillCreditKm);
 
         const paybackFuel =
             (paybackKm / 100) *
             LITRES_PER_100KM *
-            0.4; // mild uphill / recovery penalty
+            DOWNHILL_PAYBACK_MULT; // mild uphill / recovery penalty
 
         liveDrive.fuelUsedLitres += paybackFuel;
         liveDrive.downhillCreditKm -= paybackKm;
