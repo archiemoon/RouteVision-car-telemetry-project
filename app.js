@@ -411,7 +411,12 @@ fuelMultiplier *= speedEfficiency;
     let urbanMultiplier = 1;
     const avgSpeedKphRecent = getRecentAverageSpeedShort(12);
 
-    if (avgSpeedKphRecent < 25 && smoothSpeedKph < 35) {
+    const isRollingRural =
+        smoothSpeedKph > 40 &&
+        speedStd < 1.9 &&
+        Math.abs(acceleration) < 0.6;
+
+    if (avgSpeedKphRecent < 28 && smoothSpeedKph < 38 && !isRollingRural) {
         urbanMultiplier = 1.15;
     }
 
@@ -423,12 +428,17 @@ fuelMultiplier *= speedEfficiency;
     let effectiveLPer100 = LITRES_PER_100KM * cappedMultiplier;
 
     // allow much lower consumption during stable cruise
-    if (isLightLoadCruise) {
-        effectiveLPer100 = Math.min(effectiveLPer100, MIN_L_PER_100KM_CRUISE);
+    const lightLoadGrace =
+        isLightLoadCruise ||
+        (smoothSpeedKph > 45 && speedStd < 0.8 && Math.abs(acceleration) < 0.15);
+
+    
+    if (lightLoadGrace) {
+        effectiveLPer100 = Math.min(effectiveLPer100,MIN_L_PER_100KM_CRUISE);
     }
 
     // allow near-fuel-cut-ish during overrun/downhill-like conditions
-    if (isOverrunLike) {
+    if (isOverrunLike && acceleration <= 0) {
         effectiveLPer100 = Math.min(effectiveLPer100, MIN_L_PER_100KM_OVERRUN);
     }
 
@@ -1012,7 +1022,7 @@ function updateProfileStats() {
 const editBtn = document.getElementById("edit-profile-btn")
 editBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "This is an upadte checker button."
+        "Current Release Version: v1.0.1"
     );
 
     if (!confirmed) return;
