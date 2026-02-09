@@ -130,6 +130,8 @@ function stopDrive() {
     drives.push(driveSummary);
     localStorage.setItem("drives", JSON.stringify(drives));
 
+    updateFuelRemaining(liveDrive.fuelUsedLitres);
+
     liveDrive = null;
 }
 
@@ -722,6 +724,38 @@ function formatTime(i) {
     return `${hours}:${minutes}`;
 }
 
+////////////////////////
+// Stats Panel
+////////////////////////
+const refuelBtn = document.getElementById("refuel-btn");
+
+refuelBtn.addEventListener("click", () => {
+    currentFuel = 44;
+    localStorage.setItem("fuelRemaining", currentFuel);
+    updateFuelDisplay();
+});
+
+let currentFuel = Number(localStorage.getItem("fuelRemaining")) || 44;
+
+function updateFuelDisplay() {
+    const percent = (currentFuel / 44) * 100;
+
+    document.getElementById("fuel-estimation-value").style.width = percent + "%";
+}
+
+function updateFuelRemaining(fuelUsed) {
+    currentFuel = Math.max(0, currentFuel - fuelUsed);
+    localStorage.setItem("fuelRemaining", currentFuel);
+    updateFuelDisplay();
+}
+
+const useFuel = document.getElementById("use-fuel-btn");
+useFuel.addEventListener("click", () => {
+    updateFuelRemaining(3);
+});
+
+updateFuelDisplay();
+
 //////////////////////// Trips Page ////////////////////////
 function renderAllTrips() {
     const tripsPage = document.getElementById("recent-trips-page-content");
@@ -1044,7 +1078,7 @@ function updateProfileStats() {
 const editBtn = document.getElementById("edit-profile-btn")
 editBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.0.2"
+        "Current Release Version: v1.0.3"
     );
 
     if (!confirmed) return;
