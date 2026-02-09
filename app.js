@@ -16,7 +16,7 @@ const LITRES_PER_100KM = 5.3;
 const IDLE_LITRES_PER_HOUR = 0.8; // realistic range: 0.5–1.0
 
 // Calibrate MPG output to your car
-const MPG_CALIBRATION = 0.985;
+const MPG_CALIBRATION = 1;
 
 // --- Tuning knobs (adjust later if needed) ---
 const SPEED_SMOOTH_WINDOW = 10;      // last N GPS samples used for smoothing accel
@@ -278,7 +278,7 @@ function getWarmupMultiplier() {
     const distFactor = Math.exp(-km / 4);   // ~4 km distance constant
 
     // Up to +24% at the very start, smoothly decays toward 1.0
-    const penalty = 0.24 * Math.max(timeFactor, distFactor);
+    const penalty = 0.3 * Math.max(timeFactor, distFactor);
     return 1 + penalty;
 }
 
