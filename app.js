@@ -1084,7 +1084,7 @@ function updateProfileStats() {
 const editBtn = document.getElementById("edit-profile-btn")
 editBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.0.4"
+        "Current Release Version: v1.0.5"
     );
 
     if (!confirmed) return;
