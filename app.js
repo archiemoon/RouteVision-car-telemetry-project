@@ -740,7 +740,18 @@ let currentFuel = Number(localStorage.getItem("fuelRemaining")) || 44;
 function updateFuelDisplay() {
     const percent = (currentFuel / 44) * 100;
 
-    document.getElementById("fuel-estimation-value").style.width = percent + "%";
+    const fuelBar = document.getElementById("fuel-estimation-value");
+
+    fuelBar.style.width = percent + "%";
+
+    // Low fuel warnings
+    if (percent <= 25) {
+        fuelBar.className = "low-fuel";
+    } else if (percent <= 50) {
+        fuelBar.className = "med-fuel";
+    } else {
+        fuelBar.className = "";
+    }
 }
 
 function updateFuelRemaining(fuelUsed) {
