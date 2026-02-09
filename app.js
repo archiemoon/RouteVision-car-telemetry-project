@@ -749,11 +749,6 @@ function updateFuelRemaining(fuelUsed) {
     updateFuelDisplay();
 }
 
-const useFuel = document.getElementById("use-fuel-btn");
-useFuel.addEventListener("click", () => {
-    updateFuelRemaining(3);
-});
-
 updateFuelDisplay();
 
 //////////////////////// Trips Page ////////////////////////
@@ -1078,7 +1073,7 @@ function updateProfileStats() {
 const editBtn = document.getElementById("edit-profile-btn")
 editBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.0.3"
+        "Current Release Version: v1.0.4"
     );
 
     if (!confirmed) return;

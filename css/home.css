@@ -127,20 +127,3 @@
     align-items: center;
     justify-content: center;
 }
-
-#use-fuel-btn {
-    width: 25px;
-    height: 25px;
-    border-radius: 50px;
-    border: none;
-
-    background: var(--bg-panel);
-    box-shadow: 0 1px 8px 3px var(--shadow);
-    color: var(--text-main);
-
-    font-size: 16px;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
