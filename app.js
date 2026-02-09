@@ -1120,6 +1120,7 @@ resetBtn.addEventListener("click", () => {
     }
 });
 
+
 ////////////////////////
 // Bottom Nav btns
 ////////////////////////
