@@ -730,6 +730,12 @@ function formatTime(i) {
 const refuelBtn = document.getElementById("refuel-btn");
 
 refuelBtn.addEventListener("click", () => {
+    const confirmed = confirm(
+        "Are you sure you want to refuel? This will reset your remaining fuel to full"
+    );
+
+    if (!confirmed) return;
+
     currentFuel = 44;
     localStorage.setItem("fuelRemaining", currentFuel);
     updateFuelDisplay();
@@ -1084,7 +1090,7 @@ function updateProfileStats() {
 const editBtn = document.getElementById("edit-profile-btn")
 editBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.0.5"
+        "Current Release Version: v1.0.6"
     );
 
     if (!confirmed) return;
