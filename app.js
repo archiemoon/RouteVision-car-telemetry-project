@@ -1114,7 +1114,7 @@ editBtn.addEventListener("click", () => {
 
     const number = Number(value);
 
-    if (Number.isNaN(number)) {
+    if (Number.isNaN(number) || number < 10) {
         alert("Please enter a valid number");
         return;
     }
