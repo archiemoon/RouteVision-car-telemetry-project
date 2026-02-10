@@ -1153,7 +1153,7 @@ function updateProfileStats() {
 const versionBtn = document.getElementById("release-version-btn")
 versionBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.1.2"
+        "Current Release Version: v1.1.3"
     );
 
     if (!confirmed) return;
