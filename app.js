@@ -10,7 +10,7 @@ let timeInterval = null;
 
 // -------------------- Tunable constants --------------------
 // Baseline economy model
-const LITRES_PER_100KM = 5.3;
+const LITRES_PER_100KM = 282.481 / (Number(localStorage.getItem("baselineMPG")) || 53);
 
 // Idle consumption
 const IDLE_LITRES_PER_HOUR = 0.8; // realistic range: 0.5–1.0
@@ -1094,13 +1094,33 @@ function updateProfileStats() {
     }
 }
 
-const editBtn = document.getElementById("edit-profile-btn")
-editBtn.addEventListener("click", () => {
+const versionBtn = document.getElementById("release-version-btn")
+versionBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.0.7"
+        "Current Release Version: v1.1.0"
     );
 
     if (!confirmed) return;
+});
+
+const editBtn = document.getElementById("edit-profile-btn")
+editBtn.addEventListener("click", () => {
+    const value = prompt(
+        "Please enter a new basline mpg.\nThis should be your cars mpg on a 1hr long drive.\n\nNote: This should be calibrated in comparison to your cars trip computer over multiple drives for the best results.",
+        ""
+    );
+
+    if (value === null) return; // user cancelled
+
+    const number = Number(value);
+
+    if (Number.isNaN(number)) {
+        alert("Please enter a valid number");
+        return;
+    }
+
+    // Save the new baseline MPG to localStorage
+    localStorage.setItem("baselineMPG", number);
 });
 
 const setHomeBtn = document.getElementById("set-profile-home-btn");
