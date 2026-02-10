@@ -725,21 +725,60 @@ function formatTime(i) {
 }
 
 ////////////////////////
-// Stats Panel
+// Fuel Panel
 ////////////////////////
 const refuelBtn = document.getElementById("refuel-btn");
+const refuelPanel = document.getElementById("refuel-panel");
+const icon = document.querySelector("#refuel-btn i");
 
 refuelBtn.addEventListener("click", () => {
-    const confirmed = confirm(
-        "Are you sure you want to refuel? This will reset your remaining fuel to full"
-    );
+    refuelPanel.classList.toggle("invisible");
+    
+    updateChevron();
+});
 
-    if (!confirmed) return;
+function updateChevron() {
+    if (!icon) return;
+    if (refuelPanel.classList.contains("invisible")) {
+        icon.classList.remove("fa-chevron-up");
+        icon.classList.add("fa-fill-drip");
+    } else {
+        icon.classList.remove("fa-fill-drip");
+        icon.classList.add("fa-chevron-up");
+    }
+}
 
+const refuelInput = document.getElementById("refuel-input");
+const confirmRefuelBtn = document.getElementById("confirm-refuel-btn");
+const fillTankBtn = document.getElementById("fill-tank-btn");
+
+confirmRefuelBtn.addEventListener("click", () => {
+    const money = Number(refuelInput.value);
+    if (!money || money <= 0) return;
+
+    const fuelPrice = localStorage.getItem("fuelPrice");
+    if (!fuelPrice) {
+        alert("Fuel price not set");
+        return;
+    }
+
+    const litresToAdd = money / (fuelPrice/100);
+
+    addFuel(litresToAdd);
+
+    refuelInput.value = "";
+    refuelPanel.classList.add("invisible");
+    updateChevron();
+});
+
+fillTankBtn.addEventListener("click", () => {
     currentFuel = 44;
     localStorage.setItem("fuelRemaining", currentFuel);
     updateFuelDisplay();
+    refuelPanel.classList.add("invisible");
+    updateChevron();
 });
+
 
 let currentFuel = Number(localStorage.getItem("fuelRemaining")) || 44;
 
@@ -1111,7 +1150,7 @@ function updateProfileStats() {
 const versionBtn = document.getElementById("release-version-btn")
 versionBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.1.0"
+        "Current Release Version: v1.1.1"
     );
 
     if (!confirmed) return;
@@ -1245,7 +1284,6 @@ document.getElementById("profile-btn")
 
 function refreshPages() {
     renderRecentTrips();
-    //renderStatsPreview();
     renderAllTrips();
     renderStats();
     updateProfileStats();
@@ -1254,7 +1292,6 @@ function refreshPages() {
 
 function renderHomePage() {
     renderRecentTrips();
-    //renderStatsPreview();
 }
 
 updateFuelPrice();

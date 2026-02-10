@@ -63,8 +63,8 @@
                 <header id="recent-trips-overview-header" class="panel-header">Recent Trips:</header>
                 <div id="recent-trips-overview-content"></div>
             </div>
-            <div id="stats-overview" class="main-content-panel">
-                <header id="stats-overview-header" class="panel-header">Statistics:</header>
+            <div id="fuel-overview" class="main-content-panel">
+                <header id="fuel-overview-header" class="panel-header">Fuel Estimation:</header>
                 <div id="fuel-estimation-container-layout">
                         <div id="fuel-estimation-icon">
                             <i class="fa-solid fa-gas-pump"></i>
@@ -74,10 +74,20 @@
                             </div>
                         </div>
                         <button id="refuel-btn">
-                            <i class="fa-solid fa-arrows-rotate"></i>
+                            <i class="fa-solid fa-fill-drip"></i>
                         </button>
-                </div>
-                <div id="stats-overview-content">
+
+                        <div id="refuel-panel" class="invisible">
+                            <div id="refuel-panel-label">£</div>
+                            <input
+                                id="refuel-input"
+                                type="number"
+                                min="0"
+                                step="0.1"
+                            />
+                            <button id="confirm-refuel-btn">Add</button>
+                            <button id="fill-tank-btn">Fill</button>
+                        </div>
                 </div>
             </div>
     </div>
