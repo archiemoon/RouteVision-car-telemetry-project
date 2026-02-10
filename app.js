@@ -882,6 +882,20 @@ function normalizeDrive(drive) {
     };
 }
 
+function getStartOfCurrentWeekMonday() {
+    const now = new Date();
+    const day = now.getDay();
+
+    // Convert so Monday = 0, Sunday = 6
+    const diffToMonday = (day + 6) % 7;
+
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - diffToMonday);
+    monday.setHours(0, 0, 0, 0);
+
+    return monday.getTime();
+}
+
 function getDrivesForPeriod(period) {
     const drives =
         (JSON.parse(localStorage.getItem("drives")) || [])
@@ -894,7 +908,7 @@ function getDrivesForPeriod(period) {
 
     switch (period) {
         case "week":
-            cutoff = now - 7 * 24 * 60 * 60 * 1000;
+            cutoff = getStartOfCurrentWeekMonday();
             break;
         case "month":
             cutoff = now - 30 * 24 * 60 * 60 * 1000;
@@ -1045,7 +1059,7 @@ function renderStats() {
     statsPage.style.paddingTop = "60px";
     statsPage.style.paddingBottom = "60px";
 
-    statsPage.appendChild(createStatsCard("week", "Weekly Stats"));
+    statsPage.appendChild(createStatsCard("week", "Current Week"));
     statsPage.appendChild(createStatsCard("month", "Monthly Stats"));
     statsPage.appendChild(createStatsCard("year", "Yearly Stats"));
     statsPage.appendChild(createStatsCard("lifetime", "Lifetime Stats"));
