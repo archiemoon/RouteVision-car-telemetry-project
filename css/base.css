@@ -6,6 +6,7 @@
     --text-main: rgb(66, 66, 66);
     --text-accent: rgb(120, 120, 120);
     --green-accent: rgba(39, 179, 34, 1);
+    --orange-accent: #f8ae2d;
     --red-accent: rgb(232, 29, 29);
     --internal-container: rgb(235, 235, 235);
 }
@@ -24,6 +25,7 @@ body.dark {
     --text-main: rgb(214, 214, 214);
     --text-accent: rgb(120, 120, 120);
     --green-accent: rgba(39, 179, 34, 1);
+    --orange-accent: #f8ae2d;
     --red-accent: rgb(232, 29, 29);
     --internal-container: rgb(66, 66, 66);
 }

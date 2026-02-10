@@ -113,11 +113,11 @@
 }
 /* med fuel warning */
 #fuel-estimation-value.med-fuel {
-    background: #f8ae2d;
+    background: var(--orange-accent);
 }
 /* low fuel warning */
 #fuel-estimation-value.low-fuel {
-    background: #e53935;
+    background: var(--red-accent);
 }
 
 #refuel-btn {

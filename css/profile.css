@@ -149,7 +149,19 @@
 
     border-radius: 50px;
     background-color: var(--bg-panel);
-    box-shadow: 0 4px 20px 0 var(--shadow);
+    box-shadow: 0 0 15px 0 var(--shadow);
+}
+
+/* Warning (missing data) */
+.profile-action-btns.warning {
+    box-shadow: 0 0 15px var(--orange-accent);
+    color: var(--orange-accent);
+}
+
+/* Good (data set) */
+.profile-action-btns.ready {
+    /* box-shadow: 0 0 12px var(--green-accent); */
+    color: var(--green-accent);
 }
 
 #reset-profile-btn {
@@ -166,5 +178,5 @@
 
     border-radius: 50px;
     background-color: var(--bg-panel);
-    box-shadow: 0 4px 20px 0 var(--shadow);
+    box-shadow: 0 0 15px 0 var(--shadow);
 }

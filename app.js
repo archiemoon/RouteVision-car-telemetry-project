@@ -1106,7 +1106,7 @@ versionBtn.addEventListener("click", () => {
 const editBtn = document.getElementById("edit-profile-btn")
 editBtn.addEventListener("click", () => {
     const value = prompt(
-        "Please enter a new basline mpg.\nThis should be your cars mpg on a 1hr long drive.\n\nNote: This should be calibrated in comparison to your cars trip computer over multiple drives for the best results.",
+        "Please enter a new basline mpg.\n(Your cars mpg on a ~1hr long drive)\n\nCurrent Baseline: " + localStorage.getItem("baselineMPG") + "mpg\n\nNote: This should be calibrated in comparison to your cars trip computer over multiple drives for the best results.",
         ""
     );
 
@@ -1115,12 +1115,13 @@ editBtn.addEventListener("click", () => {
     const number = Number(value);
 
     if (Number.isNaN(number) || number < 10) {
-        alert("Please enter a valid number");
+        alert("Please enter a valid number > 10.");
         return;
     }
 
     // Save the new baseline MPG to localStorage
     localStorage.setItem("baselineMPG", number);
+    refreshPages();
 });
 
 const setHomeBtn = document.getElementById("set-profile-home-btn");
@@ -1140,6 +1141,7 @@ setHomeBtn.addEventListener("click", () => {
         localStorage.setItem("location", JSON.stringify(location));
         updateFuelPrice();
     })
+    refreshPages();
 });
 
 const resetBtn = document.getElementById("reset-profile-btn")
@@ -1158,6 +1160,24 @@ resetBtn.addEventListener("click", () => {
         fuelPriceText.textContent = "000.0";
     }
 });
+
+function updateProfileButtons() {
+    const carBtn = document.getElementById("edit-profile-btn");
+    const homeBtn = document.getElementById("set-profile-home-btn");
+
+    const hasMpg = !!localStorage.getItem("baselineMPG");
+    const hasHome = !!localStorage.getItem("location");
+
+    setButtonState(carBtn, hasMpg);
+    setButtonState(homeBtn, hasHome);
+}
+
+function setButtonState(button, isReady) {
+    button.classList.remove("warning", "ready");
+    button.classList.add(isReady ? "ready" : "warning");
+}
+
+updateProfileButtons();
 
 
 ////////////////////////
@@ -1215,6 +1235,7 @@ function refreshPages() {
     renderAllTrips();
     renderStats();
     updateProfileStats();
+    updateProfileButtons();
 }
 
 function renderHomePage() {
