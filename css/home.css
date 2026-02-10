@@ -140,6 +140,7 @@
 
 #refuel-panel {
     width: 100%;
+    height: 33px;
     margin-top: 8px;
 
     display: flex;
@@ -171,6 +172,7 @@
     background: var(--internal-container);
     box-shadow: 0 1px 6px var(--shadow);
     color: var(--text-main);
+    font-weight: 600;
 }
 
 .invisible {

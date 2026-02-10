@@ -734,10 +734,10 @@ const icon = document.querySelector("#refuel-btn i");
 refuelBtn.addEventListener("click", () => {
     refuelPanel.classList.toggle("invisible");
     
-    updateChevron();
+    updateIcon();
 });
 
-function updateChevron() {
+function updateIcon() {
     if (!icon) return;
     if (refuelPanel.classList.contains("invisible")) {
         icon.classList.remove("fa-chevron-up");
@@ -754,7 +754,10 @@ const fillTankBtn = document.getElementById("fill-tank-btn");
 
 confirmRefuelBtn.addEventListener("click", () => {
     const money = Number(refuelInput.value);
-    if (!money || money <= 0) return;
+    if (!money || money <= 0){
+        alert("Please enter a valid amount");
+        return;
+    };
 
     const fuelPrice = localStorage.getItem("fuelPrice");
     if (!fuelPrice) {
@@ -768,7 +771,7 @@ confirmRefuelBtn.addEventListener("click", () => {
 
     refuelInput.value = "";
     refuelPanel.classList.add("invisible");
-    updateChevron();
+    updateIcon();
 });
 
 fillTankBtn.addEventListener("click", () => {
@@ -776,7 +779,7 @@ fillTankBtn.addEventListener("click", () => {
     localStorage.setItem("fuelRemaining", currentFuel);
     updateFuelDisplay();
     refuelPanel.classList.add("invisible");
-    updateChevron();
+    updateIcon();
 });
 
 
@@ -1150,7 +1153,7 @@ function updateProfileStats() {
 const versionBtn = document.getElementById("release-version-btn")
 versionBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.1.1"
+        "Current Release Version: v1.1.2"
     );
 
     if (!confirmed) return;
