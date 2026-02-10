@@ -766,6 +766,12 @@ function updateFuelRemaining(fuelUsed) {
     updateFuelDisplay();
 }
 
+function addFuel(amount) {
+    currentFuel = Math.min(44, currentFuel + amount);
+    localStorage.setItem("fuelRemaining", currentFuel);
+    updateFuelDisplay();
+}
+
 updateFuelDisplay();
 
 //////////////////////// Trips Page ////////////////////////
@@ -839,6 +845,7 @@ function renderAllTrips() {
 
         deleteButton.onclick = () => {
             deleteDriveByStartTime(drive.startTime);
+            addFuel(drive.fuelUsedLitres);
             cell.remove();
         };
 
@@ -1090,7 +1097,7 @@ function updateProfileStats() {
 const editBtn = document.getElementById("edit-profile-btn")
 editBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.0.6"
+        "Current Release Version: v1.0.7"
     );
 
     if (!confirmed) return;
