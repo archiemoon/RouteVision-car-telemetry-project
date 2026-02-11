@@ -802,17 +802,17 @@ confirmRefuelBtn.addEventListener("click", () => {
 });
 
 fillTankBtn.addEventListener("click", () => {
-    currentFuel = 44;
-    localStorage.setItem("fuelRemaining", currentFuel);
+    localStorage.setItem("fuelRemaining", 44);
     updateFuelDisplay();
     refuelPanel.classList.add("invisible");
     updateIcon();
 });
 
-
-let currentFuel = Number(localStorage.getItem("fuelRemaining")) || 44;
-
 function updateFuelDisplay() {
+    let currentFuel = Number(localStorage.getItem("fuelRemaining")) || 44;
+
+    localStorage.setItem("fuelRemaining", currentFuel);
+
     const percent = (currentFuel / 44) * 100;
 
     const fuelBar = document.getElementById("fuel-estimation-value");
@@ -830,13 +830,13 @@ function updateFuelDisplay() {
 }
 
 function updateFuelRemaining(fuelUsed) {
-    currentFuel = Math.max(0, currentFuel - fuelUsed);
+    let currentFuel = Math.max(0, localStorage.getItem("fuelRemaining") - fuelUsed);
     localStorage.setItem("fuelRemaining", currentFuel);
     updateFuelDisplay();
 }
 
 function addFuel(amount) {
-    currentFuel = Math.min(44, currentFuel + amount);
+    let currentFuel = Math.min(44, localStorage.getItem("fuelRemaining") + amount);
     localStorage.setItem("fuelRemaining", currentFuel);
     updateFuelDisplay();
 }
@@ -846,8 +846,6 @@ function addFuel(amount) {
     //localStorage.setItem("fuelRemaining", currentFuel);
     //updateFuelDisplay();
 //}
-
-updateFuelDisplay();
 
 //////////////////////// Trips Page ////////////////////////
 function renderAllTrips() {
@@ -1186,7 +1184,7 @@ function updateProfileStats() {
 const versionBtn = document.getElementById("release-version-btn")
 versionBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.1.4"
+        "Current Release Version: v1.1.5"
     );
 
     if (!confirmed) return;
@@ -1331,3 +1329,4 @@ function renderHomePage() {
 }
 
 updateFuelPrice();
+updateFuelDisplay();
