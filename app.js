@@ -17,6 +17,7 @@ const IDLE_LITRES_PER_HOUR = 0.8; // realistic range: 0.5–1.0
 
 // Calibrate MPG output to your car
 const MPG_CALIBRATION = 1;
+const DEFAULT_FUEL_PRICE = 135; // pence per litre (used if API price unavailable)
 
 // --- Tuning knobs (adjust later if needed) ---
 const SPEED_SMOOTH_WINDOW = 10;      // last N GPS samples used for smoothing accel
@@ -112,7 +113,7 @@ function stopDrive() {
     const [y, m, d] = iso.split("-");
     const formattedDate = `${d}/${m}/${y}`;
 
-    const fuelPricePerL = Number(localStorage.getItem("fuelPrice")) || 0;
+    const fuelPricePerL = Number(localStorage.getItem("fuelPrice")) || DEFAULT_FUEL_PRICE;
     const fuelCost = liveDrive.fuelUsedLitres * (fuelPricePerL / 100);
 
     const driveSummary = {
@@ -608,40 +609,66 @@ switcherBtn.addEventListener("click", toggleDarkMode);
 //////////////////////// Home Page ////////////////////////
 
 async function updateFuelPrice() {
-        try {
-            const location = JSON.parse(localStorage.getItem("location"));
-            console.log(location.latitude, location.longitude);
+    const fuelPriceText = document.getElementById("fuel-price");
+    if (!fuelPriceText) return;
 
-            const price = await getLocalE10Price(
-                location.latitude,
-                location.longitude
-            );
+    let price = null;
 
-            if (price == null) {
-                console.warn("Fuel price unavailable");
-                return;
-            }
+    try {
+        // Read location if available
+        const locationJson = localStorage.getItem("location");
+        const location = locationJson ? JSON.parse(locationJson) : null;
 
+        const lat = location?.latitude ?? null;
+        const lng = location?.longitude ?? null;
+
+        // Call worker
+        price = await getLocalE10Price(lat, lng);
+
+        if (Number.isFinite(price)) {
             localStorage.setItem("fuelPrice", price);
-
-            const fuelPriceText = document.getElementById("fuel-price");
-            if (!fuelPriceText) return;
             fuelPriceText.textContent = price.toFixed(1);
-
-            console.log("Local E10:", price.toFixed(1), "p/L");
-        } catch (err) {
-            console.error("Failed to update fuel price", err);
+            console.log("Fuel price updated:", price.toFixed(1));
+            return;
         }
+
+        console.warn("Worker returned invalid price, will use fallback");
+    } catch (err) {
+        console.warn("Fuel price fetch failed, using fallback", err);
+    }
+
+    // Only reach here if worker failed or returned invalid value
+    const stored = Number(localStorage.getItem("fuelPrice"));
+    const fallback = Number.isFinite(stored) ? stored : DEFAULT_FUEL_PRICE;
+    fuelPriceText.textContent = fallback.toFixed(1);
+    console.log("Fuel price fallback:", fallback.toFixed(1));
 }
+
 
 async function getLocalE10Price(lat, lng) {
-    const res = await fetch(
-        `https://fuel-price-proxy.archie-moon04.workers.dev/?lat=${lat}&lng=${lng}&radius=10`
-    );
-    const data = await res.json();
-    return data.avgE10PencePerLitre;
-}
+    const url = new URL("https://fuel-price-proxy.archie-moon04.workers.dev/");
 
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        url.searchParams.set("lat", lat);
+        url.searchParams.set("lng", lng);
+        url.searchParams.set("radius", 10);
+    }
+
+    const res = await fetch(url.toString());
+    console.log("Worker response status:", res.status);
+
+    if (!res.ok) {
+        const text = await res.text(); // read body for debug
+        console.warn("Worker returned error body:", text);
+        throw new Error("Worker failed");
+    }
+
+    const data = await res.json();
+
+    return Number.isFinite(data.avgE10PencePerLitre)
+        ? data.avgE10PencePerLitre
+        : null;
+}
 
 ////////////////////////
 // Recent Trips 
@@ -863,7 +890,7 @@ function renderAllTrips() {
         const price =
             Number.isFinite(drive.fuelCost)
                 ? drive.fuelCost
-                : (drive.fuelUsedLitres * (137.9/100)); // if no price saved, revert to fixed value
+                : (drive.fuelUsedLitres * (DEFAULT_FUEL_PRICE/100)); // if no price saved, revert to fixed value
 
         line2.style.whiteSpace = "pre-line";
         line2.textContent = 
@@ -1183,7 +1210,7 @@ editBtn.addEventListener("click", () => {
 const setHomeBtn = document.getElementById("set-profile-home-btn");
 setHomeBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Are you sure you want to set your current location as your Home?\n\nThis is used to obtain your local fuel price."
+        "Are you sure you want to set your current location as your Home?\n\nThis is used to obtain your local fuel price.\n\nNo location will revert to national average price."
     );
 
     if (!confirmed) return;
@@ -1196,8 +1223,8 @@ setHomeBtn.addEventListener("click", () => {
 
         localStorage.setItem("location", JSON.stringify(location));
         updateFuelPrice();
+        refreshPages();
     })
-    refreshPages();
 });
 
 const resetBtn = document.getElementById("reset-profile-btn")

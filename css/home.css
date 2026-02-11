@@ -87,6 +87,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    position: relative;
     background-color: var(--internal-container);
     box-shadow: 0 0px 4px 0 var(--shadow);
     border-radius: 20px;
@@ -96,13 +97,15 @@
 }
 
 #fuel-estimation-container {
-    width: 77%;   
     height: 18px;
     border-radius: 10px;
     box-shadow: 0 2px 8px 0 var(--shadow);
     background-color: var(--text-main);
     overflow: hidden;
-    position: relative;
+    position: absolute;
+    top: 10px;
+    left: 35px;
+    right: 50px;
 }
 
 #fuel-estimation-value {
@@ -126,6 +129,10 @@
     height: 25px;
     border-radius: 50px;
     border: none;
+
+    position: absolute;
+    right: 12px;
+    top: 7px;
 
     background: var(--internal-container);
     box-shadow: 0 1px 10px 1px var(--shadow);
@@ -160,16 +167,16 @@
     width: 100%;
     flex: 1;
     padding: 6px 10px;
-    border-radius: 10px;
+    border-radius: 20px;
     border: none;
     box-shadow: 0 1px 6px var(--shadow);
 }
 
 #refuel-panel button {
     padding: 6px 12px;
-    border-radius: 10px;
+    border-radius: 20px;
     border: none;
-    background: var(--internal-container);
+    background: var(--bg-panel);
     box-shadow: 0 1px 6px var(--shadow);
     color: var(--text-main);
     font-weight: 600;
