@@ -835,17 +835,17 @@ function updateFuelRemaining(fuelUsed) {
     updateFuelDisplay();
 }
 
-//function addFuel(amount) {
-    //currentFuel = Math.min(44, currentFuel + amount);
-    //localStorage.setItem("fuelRemaining", currentFuel);
-    //updateFuelDisplay();
-//}
-
 function addFuel(amount) {
-    currentFuel = Math.max(0, currentFuel - amount);
+    currentFuel = Math.min(44, currentFuel + amount);
     localStorage.setItem("fuelRemaining", currentFuel);
     updateFuelDisplay();
 }
+
+//function addFuel(amount) {
+    //currentFuel = Math.max(0, currentFuel - amount);
+    //localStorage.setItem("fuelRemaining", currentFuel);
+    //updateFuelDisplay();
+//}
 
 updateFuelDisplay();
 
@@ -1134,8 +1134,8 @@ function renderStats() {
     statsPage.style.paddingTop = "60px";
     statsPage.style.paddingBottom = "60px";
 
-    statsPage.appendChild(createStatsCard("week", "Current Week"));
-    statsPage.appendChild(createStatsCard("month", "Monthly Stats"));
+    statsPage.appendChild(createStatsCard("week", "This Week"));
+    statsPage.appendChild(createStatsCard("month", "Last 30 days"));
     statsPage.appendChild(createStatsCard("year", "Yearly Stats"));
     statsPage.appendChild(createStatsCard("lifetime", "Lifetime Stats"));
 }
