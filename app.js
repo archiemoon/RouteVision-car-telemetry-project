@@ -835,8 +835,14 @@ function updateFuelRemaining(fuelUsed) {
     updateFuelDisplay();
 }
 
+//function addFuel(amount) {
+    //currentFuel = Math.min(44, currentFuel + amount);
+    //localStorage.setItem("fuelRemaining", currentFuel);
+    //updateFuelDisplay();
+//}
+
 function addFuel(amount) {
-    currentFuel = Math.min(44, currentFuel + amount);
+    currentFuel = Math.max(0, currentFuel - amount);
     localStorage.setItem("fuelRemaining", currentFuel);
     updateFuelDisplay();
 }
