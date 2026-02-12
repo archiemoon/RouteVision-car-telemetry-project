@@ -1193,7 +1193,7 @@ versionBtn.addEventListener("click", () => {
 const editBtn = document.getElementById("edit-profile-btn")
 editBtn.addEventListener("click", () => {
     const value = prompt(
-        "Please enter a new basline mpg.\n(Your cars mpg on a ~1hr long drive)\n\nCurrent Baseline: " + localStorage.getItem("baselineMPG") + "mpg\n\nNote: This should be calibrated in comparison to your cars trip computer over multiple drives for the best results.",
+        "Please enter a new basline mpg\n(Your cars mpg on a ~1hr long drive)\n\nCurrent Baseline: " + localStorage.getItem("baselineMPG") + "mpg\n\nNote: This should be calibrated in comparison to your cars trip computer over multiple drives for the best results.",
         ""
     );
 
