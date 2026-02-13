@@ -809,7 +809,7 @@ fillTankBtn.addEventListener("click", () => {
 });
 
 function updateFuelDisplay() {
-    let currentFuel = Number(localStorage.getItem("fuelRemaining")) || 44;
+    let currentFuel = Number(localStorage.getItem("fuelRemaining") ?? 44);
 
     localStorage.setItem("fuelRemaining", currentFuel);
 
@@ -836,8 +836,11 @@ function updateFuelRemaining(fuelUsed) {
 }
 
 function addFuel(amount) {
-    let currentFuel = Math.min(44, localStorage.getItem("fuelRemaining") + amount);
-    localStorage.setItem("fuelRemaining", currentFuel);
+    let currentFuel = Number(localStorage.getItem("fuelRemaining")) || 0;
+
+    let newFuel = Math.min(44, currentFuel + amount);
+
+    localStorage.setItem("fuelRemaining", newFuel);
     updateFuelDisplay();
 }
 
@@ -1184,7 +1187,7 @@ function updateProfileStats() {
 const versionBtn = document.getElementById("release-version-btn")
 versionBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.1.5"
+        "Current Release Version: v1.1.6"
     );
 
     if (!confirmed) return;

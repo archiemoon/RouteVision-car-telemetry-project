@@ -90,7 +90,7 @@
     position: relative;
     background-color: var(--internal-container);
     box-shadow: 0 0px 4px 0 var(--shadow);
-    border-radius: 20px;
+    border-radius: 15px;
     gap: 10px;
     margin-bottom: 9px;
     padding: 10px 12px;
@@ -103,7 +103,7 @@
     background-color: var(--text-main);
     overflow: hidden;
     position: absolute;
-    top: 10px;
+    top: 11px;
     left: 35px;
     right: 50px;
 }
