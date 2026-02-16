@@ -25,7 +25,7 @@ const STEADY_CRUISE_MULT = 0.9;     // 0.78–0.90 (lower = more efficient cruis
 const OPTIMAL_SPEED_KPH = 85;        // ~53 mph sweet spot
 const SPEED_EFF_STRENGTH = 0.15;     // higher = bigger penalty away from optimal
 const COASTING_REDUCTION = 0.70;     // 0.6–0.85 (closer to 1 = less “free” coasting)
-const GENTLE_FLOW_MULT = 0.92;
+const GENTLE_FLOW_MULT = 0.95;
 const DOWNHILL_PAYBACK_MULT = 0.55;
 
 
@@ -36,7 +36,7 @@ const MIN_L_PER_100KM_OVERRUN = 0.8;  // near-fuel-cut-ish on overrun/downhill
 // --- NEW: stability detection tuning ---
 const STABLE_SPEED_STD_KPH = 0.8;     // lower = stricter “stable speed”
 const STABLE_ACCEL_KPHPS = 0.08;      // kph/s
-const LIGHTLOAD_MIN_SPEED_KPH = 55;   // only treat as light-load when above this speed
+const LIGHTLOAD_MIN_SPEED_KPH = 50;   // only treat as light-load when above this speed
 const OVERRUN_MIN_SPEED_KPH = 35;     // only treat as overrun-like when above this speed
 
 
@@ -1246,7 +1246,7 @@ function updateProfileStats() {
 const versionBtn = document.getElementById("release-version-btn")
 versionBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.1.7 beta"
+        "Current Release Version: v1.1.8 beta"
     );
 
     if (!confirmed) return;
