@@ -21,22 +21,22 @@ const DEFAULT_FUEL_PRICE = 135; // pence per litre (used if API price unavailabl
 
 // --- Tuning knobs (adjust later if needed) ---
 const SPEED_SMOOTH_WINDOW = 10;      // last N GPS samples used for smoothing accel
-const STEADY_CRUISE_MULT = 0.9;     // 0.78–0.90 (lower = more efficient cruising)
+const STEADY_CRUISE_MULT = 0.84;     // 0.78–0.90 (lower = more efficient cruising)
 const OPTIMAL_SPEED_KPH = 85;        // ~53 mph sweet spot
 const SPEED_EFF_STRENGTH = 0.15;     // higher = bigger penalty away from optimal
 const COASTING_REDUCTION = 0.70;     // 0.6–0.85 (closer to 1 = less “free” coasting)
-const GENTLE_FLOW_MULT = 0.95;
+const GENTLE_FLOW_MULT = 0.92;
 const DOWNHILL_PAYBACK_MULT = 0.55;
 
 
 // --- NEW: allow very low fuel during light-load cruise / downhill-overrun-like moments ---
-const MIN_L_PER_100KM_CRUISE = LITRES_PER_100KM * 0.82;   // stable high-speed cruise can be very low
+const MIN_L_PER_100KM_CRUISE = 2.3;   // stable high-speed cruise can be very low
 const MIN_L_PER_100KM_OVERRUN = 0.8;  // near-fuel-cut-ish on overrun/downhill
 
 // --- NEW: stability detection tuning ---
 const STABLE_SPEED_STD_KPH = 0.8;     // lower = stricter “stable speed”
 const STABLE_ACCEL_KPHPS = 0.08;      // kph/s
-const LIGHTLOAD_MIN_SPEED_KPH = 50;   // only treat as light-load when above this speed
+const LIGHTLOAD_MIN_SPEED_KPH = 55;   // only treat as light-load when above this speed
 const OVERRUN_MIN_SPEED_KPH = 35;     // only treat as overrun-like when above this speed
 
 
@@ -52,9 +52,7 @@ function startDrive() {
         activeSeconds: 0,
         distanceKm: 0,
         downhillCreditKm: 0,
-        fuelUsedLitres: 0,
-        prevAltitude: null,
-        altitudeBuffer: []
+        fuelUsedLitres: 0
     };
 
     startActiveTimer();
@@ -214,9 +212,7 @@ function handlePositionUpdate(position) {
     const deltaSeconds = (now - liveDrive.lastGpsTime) / 1000;
     liveDrive.lastGpsTime = now;
 
-    const altitude = position.coords.altitude;
-    updateLiveFromSpeed(speedKph, deltaSeconds, altitude);
-
+    updateLiveFromSpeed(speedKph, deltaSeconds);
 
     // Debug UI
     const dbgTime = document.getElementById("dbg-time");
@@ -298,21 +294,8 @@ function getCruiseSmoothnessFactor(accel, speedStd) {
     return Math.min(1, accelScore * stdScore);
 }
 
-function getSmoothedAltitude(currentAlt) {
-    if (currentAlt == null) return null;
 
-    liveDrive.altitudeBuffer.push(currentAlt);
-    if (liveDrive.altitudeBuffer.length > 8)
-        liveDrive.altitudeBuffer.shift();
-
-    const avg =
-        liveDrive.altitudeBuffer.reduce((a,b)=>a+b,0) /
-        liveDrive.altitudeBuffer.length;
-
-    return avg;
-}
-
-function updateLiveFromSpeed(speedKphRaw, deltaSeconds, altitude) {
+function updateLiveFromSpeed(speedKphRaw, deltaSeconds) {
     if (deltaSeconds <= 0) return;
 
     const prevDistance = liveDrive.distanceKm;
@@ -336,24 +319,6 @@ function updateLiveFromSpeed(speedKphRaw, deltaSeconds, altitude) {
 
     const deltaDistanceKm = liveDrive.distanceKm - prevDistance;
     if (deltaDistanceKm <= 0) return;
-
-    let gradient = 0;
-
-    if (altitude != null) {
-        const smoothAlt = getSmoothedAltitude(altitude);
-
-        if (liveDrive.prevAltitude != null && deltaDistanceKm > 0.001) { 
-            const deltaAlt = smoothAlt - liveDrive.prevAltitude;
-            gradient = deltaAlt / (deltaDistanceKm * 1000); // rise / run
-            gradient = Math.max(-0.12, Math.min(0.12, gradient));
-        } else {
-            gradient = 0;
-    }
-
-
-        liveDrive.prevAltitude = smoothAlt;
-    }
-
 
     // =========================================================
     // STABILITY / LOW-LOAD DETECTION
@@ -406,41 +371,21 @@ function updateLiveFromSpeed(speedKphRaw, deltaSeconds, altitude) {
     if (acceleration > 1.5) fuelMultiplier *= 1.35;
     else if (acceleration > 0.5) fuelMultiplier *= 1.12;
 
-    // ---- Speed efficiency curve (physics-first version) ----
+    // ---- Speed efficiency curve ----
     let speedEfficiency = 1;
 
-    // --- Low speed penalty (stop-start / inefficiency zone) ---
-    const LOW_EFF_KPH = 50;
-    const LOW_SPEED_STRENGTH = 0.18;
+    const PLATEAU_MIN_KPH = 55;
+    const PLATEAU_MAX_KPH = 75;
 
-    if (smoothSpeedKph < LOW_EFF_KPH) {
-        const diff = LOW_EFF_KPH - smoothSpeedKph;
-        speedEfficiency = 1 + (diff / LOW_EFF_KPH) * LOW_SPEED_STRENGTH;
+    if (smoothSpeedKph < PLATEAU_MIN_KPH) {
+        const diff = PLATEAU_MIN_KPH - smoothSpeedKph;
+        speedEfficiency = 1 + (diff / PLATEAU_MIN_KPH) * SPEED_EFF_STRENGTH;
+    } else if (smoothSpeedKph > PLATEAU_MAX_KPH) {
+        const diff = smoothSpeedKph - PLATEAU_MAX_KPH;
+        speedEfficiency = 1 + (diff / OPTIMAL_SPEED_KPH) * SPEED_EFF_STRENGTH;
     }
 
-    // --- Smooth high-speed penalty starting at ~60 mph (~96 kph) ---
-    const aeroStartKph = 96;     // ~60 mph
-    const aeroStrength = 0.0006; // tweak to hit desired MPG targets
-
-    const excessKph = Math.max(0, smoothSpeedKph - aeroStartKph);
-    const aeroPenalty = 1 + Math.pow(excessKph, 2) * aeroStrength;
-
-    speedEfficiency *= aeroPenalty;
     fuelMultiplier *= speedEfficiency;
-
-
-    // ---- Elevation effect ----
-    const uphillStrength = 6;     // tune 4–8
-    const downhillStrength = 3;   // tune 2–4
-
-    if (gradient > 0) {
-        fuelMultiplier *= 1 + (gradient * uphillStrength);
-    }
-    else if (gradient < 0) {
-        fuelMultiplier *= 1 + (gradient * downhillStrength);
-    }
-
-
 
     // ---- Steady cruise bonus ----
     const cruiseSmoothness = getCruiseSmoothnessFactor(acceleration, speedStd);
@@ -497,21 +442,16 @@ function updateLiveFromSpeed(speedKphRaw, deltaSeconds, altitude) {
 
     let effectiveLPer100 = baseLPer100 * fuelMultiplier;
 
-    const CRUISE_CLAMP_MAX_KPH = 98;
-
+    // Stable light-load cruise clamp
     if (
-        smoothSpeedKph <= CRUISE_CLAMP_MAX_KPH &&
-        (
         isLightLoadCruise ||
         (smoothSpeedKph > 45 && speedStd < 0.8 && Math.abs(acceleration) < 0.15)
-        )
     ) {
         effectiveLPer100 = Math.min(
             effectiveLPer100,
             MIN_L_PER_100KM_CRUISE
         );
     }
-
 
     // Overrun / downhill clamp
     if (isOverrunLike && acceleration <= 0) {
@@ -554,6 +494,7 @@ function getRecentAverageSpeed() {
     return liveDrive.recentSpeeds.reduce((a, b) => a + b, 0) / liveDrive.recentSpeeds.length;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -980,7 +921,8 @@ function renderAllTrips() {
 
         deleteButton.onclick = () => {
             deleteDriveByStartTime(drive.startTime);
-            addFuel(drive.fuelUsedLitres);
+            let fuelUsed = Number(drive.fuelUsedLitres) || 0;
+            addFuel(fuelUsed);
             cell.remove();
         };
 
@@ -1246,7 +1188,7 @@ function updateProfileStats() {
 const versionBtn = document.getElementById("release-version-btn")
 versionBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.1.8 beta"
+        "Current Release Version: v1.1.8"
     );
 
     if (!confirmed) return;
