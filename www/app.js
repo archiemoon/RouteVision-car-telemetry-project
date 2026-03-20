@@ -2,6 +2,7 @@ const Preferences = window.Capacitor?.Plugins?.Preferences ?? {
     get: async ({ key }) => ({ value: localStorage.getItem(key) }),
     set: async ({ key, value }) => localStorage.setItem(key, value),
     remove: async ({ key }) => localStorage.removeItem(key),
+    clear: async () => localStorage.clear(),
 };
 
 renderHomePage()
@@ -567,12 +568,12 @@ startBtn.addEventListener("click", () => {
     startDrive();
     startGPS();
 });
-stopBtn.addEventListener("click", () => {
+stopBtn.addEventListener("click",async () => {
     stopGPS();
     stopDrive();
     resetPauseIcon();
     exitDrivingMode();
-    refreshPages();
+    await refreshPages();
 });
 pauseBtn.addEventListener("click", () => {
     appState.paused = !appState.paused;
@@ -1227,7 +1228,7 @@ editBtn.addEventListener("click", async () => {
 
     // Save the new baseline MPG to localStorage
     Preferences.set({ key: "baselineMPG", value: number.toString() });
-    refreshPages();
+    await refreshPages();
 });
 
 const setHomeBtn = document.getElementById("set-profile-home-btn");
@@ -1246,7 +1247,7 @@ setHomeBtn.addEventListener("click", () => {
 
         await Preferences.set({ key: "location", value: JSON.stringify(location) });
         updateFuelPrice();
-        refreshPages();
+        await refreshPages();
     })
 });
 
@@ -1259,7 +1260,8 @@ resetBtn.addEventListener("click", async () => {
     if (!confirmed) return;
 
     await Preferences.clear();
-    refreshPages();
+    await init();
+    await refreshPages();
 
     const fuelPriceText = document.getElementById("fuel-price");
     if (fuelPriceText) {
@@ -1335,12 +1337,12 @@ document.getElementById("profile-btn")
     setActiveNav("profile-btn");
 });
 
-function refreshPages() {
-    renderRecentTrips();
-    renderAllTrips();
-    renderStats();
-    updateProfileStats();
-    updateProfileButtons();
+async function refreshPages() {
+    await renderRecentTrips();
+    await renderAllTrips();
+    await renderStats();
+    await updateProfileStats();
+    await updateProfileButtons();
 }
 
 function renderHomePage() {
