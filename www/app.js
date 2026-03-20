@@ -1248,7 +1248,12 @@ setHomeBtn.addEventListener("click", () => {
         await Preferences.set({ key: "location", value: JSON.stringify(location) });
         await updateFuelPrice();
         await refreshPages();
-    })
+    },
+    (err) => {
+        // add this error handler to see if geolocation is failing
+        console.error("Geolocation failed:", err);
+        alert("Could not get location: " + err.message);
+    });
 });
 
 const resetBtn = document.getElementById("reset-profile-btn")
