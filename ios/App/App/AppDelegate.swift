@@ -8,13 +8,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
-        window?.backgroundColor = UIColor(dynamicProvider: { traits in
-                if traits.userInterfaceStyle == .dark {
-                    return UIColor(red: 33/255, green: 33/255, blue: 33/255, alpha: 1)
-                } else {
-                    return UIColor(red: 249/255, green: 248/255, blue: 248/255, alpha: 1)
-                }
-            })
             return true
     }
 
