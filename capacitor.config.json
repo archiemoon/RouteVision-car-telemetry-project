@@ -3,6 +3,7 @@
   "appName": "RouteVision",
   "webDir": "www",
   "ios": {
-    "contentInset": "always"
+    "contentInset": "always",
+    "backgroundColor": "#ffffff"
   }
 }
