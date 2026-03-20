@@ -1,3 +1,8 @@
+const Preferences = window.Capacitor?.Plugins?.Preferences ?? {
+    get: async ({ key }) => ({ value: localStorage.getItem(key) }),
+    set: async ({ key, value }) => localStorage.setItem(key, value),
+    remove: async ({ key }) => localStorage.removeItem(key),
+};
 
 renderHomePage()
 
@@ -8,9 +13,20 @@ renderHomePage()
 let liveDrive = null;
 let timeInterval = null;
 
+async function init() {
+    const baselineMPG = (await Preferences.get({ key: 'baselineMPG' })).value;
+    LITRES_PER_100KM = 282.481 / (Number(baselineMPG) || 53);
+
+    const savedTheme = (await Preferences.get({ key: 'theme' })).value
+    if (savedTheme === "dark") {
+    document.body.classList.add("dark");
+    }
+    updateThemeIcon();
+}
+init();
+
 // -------------------- Tunable constants --------------------
-// Baseline economy model
-const LITRES_PER_100KM = 282.481 / (Number(localStorage.getItem("baselineMPG")) || 53);
+let LITRES_PER_100KM = 5.3; // calibrated to your car's real-world MPG (will be overridden by saved value if set)
 
 // Idle consumption
 const IDLE_LITRES_PER_HOUR = 0.8; // realistic range: 0.5–1.0
@@ -105,7 +121,7 @@ function calculateMPG(distanceKm, fuelLitres) {
 
 // -------------------- Stop + save --------------------
 
-function stopDrive() {
+async function stopDrive() {
     stopActiveTimer();
     appState.paused = false;
 
@@ -113,7 +129,7 @@ function stopDrive() {
     const [y, m, d] = iso.split("-");
     const formattedDate = `${d}/${m}/${y}`;
 
-    const fuelPricePerL = Number(localStorage.getItem("fuelPrice")) || DEFAULT_FUEL_PRICE;
+    const fuelPricePerL = Number((await Preferences.get({ key: 'fuelPrice' })).value) || DEFAULT_FUEL_PRICE;
     const fuelCost = liveDrive.fuelUsedLitres * (fuelPricePerL / 100);
 
     const driveSummary = {
@@ -127,9 +143,13 @@ function stopDrive() {
         estimatedMPG: calculateMPG(liveDrive.distanceKm, liveDrive.fuelUsedLitres).toFixed(1)
     };
 
-    const drives = JSON.parse(localStorage.getItem("drives")) || [];
+    
+    const drives = JSON.parse((await Preferences.get({ key: "drives" })).value || "[]");
     drives.push(driveSummary);
-    localStorage.setItem("drives", JSON.stringify(drives));
+    await Preferences.set({ 
+        key: 'drives', 
+        value: JSON.stringify(drives) 
+    });
 
     updateFuelRemaining(liveDrive.fuelUsedLitres);
 
@@ -571,14 +591,6 @@ pauseBtn.addEventListener("click", () => {
 // Dark/Light mode logic
 ////////////////////////
 
-const savedTheme = localStorage.getItem("theme");
-
-if (savedTheme === "dark") {
-    document.body.classList.add("dark");
-}
-
-updateThemeIcon();
-
 function updateThemeIcon() {
     const icon = document.querySelector("#top-bar-mode-btn i");
 
@@ -592,13 +604,13 @@ function updateThemeIcon() {
     }
 }
 
-function toggleDarkMode() {
+async function toggleDarkMode() {
     document.body.classList.toggle("dark");
 
-    localStorage.setItem(
-    "theme",
-    document.body.classList.contains("dark") ? "dark" : "light"
-    );
+    await Preferences.set({
+        key: 'theme',
+        value: document.body.classList.contains("dark") ? "dark" : "light"
+    });
 
     updateThemeIcon();
 }
@@ -616,7 +628,7 @@ async function updateFuelPrice() {
 
     try {
         // Read location if available
-        const locationJson = localStorage.getItem("location");
+        const locationJson = (await Preferences.get({ key: "location" })).value;
         const location = locationJson ? JSON.parse(locationJson) : null;
 
         const lat = location?.latitude ?? null;
@@ -626,7 +638,7 @@ async function updateFuelPrice() {
         price = await getLocalE10Price(lat, lng);
 
         if (Number.isFinite(price)) {
-            localStorage.setItem("fuelPrice", price);
+            await Preferences.set({ key: "fuelPrice", value: price.toString() });
             fuelPriceText.textContent = price.toFixed(1);
             console.log("Fuel price updated:", price.toFixed(1));
             return;
@@ -638,7 +650,7 @@ async function updateFuelPrice() {
     }
 
     // Only reach here if worker failed or returned invalid value
-    const stored = Number(localStorage.getItem("fuelPrice"));
+    const stored = Number((await Preferences.get({ key: "fuelPrice" })).value);
     const fallback = Number.isFinite(stored) ? stored : DEFAULT_FUEL_PRICE;
     fuelPriceText.textContent = fallback.toFixed(1);
     console.log("Fuel price fallback:", fallback.toFixed(1));
@@ -674,12 +686,12 @@ async function getLocalE10Price(lat, lng) {
 // Recent Trips 
 ////////////////////////
 
-function renderRecentTrips() {
+async function renderRecentTrips() {
     const recentTripsPanel =
         document.getElementById("recent-trips-overview-content");
     recentTripsPanel.innerHTML = "";
 
-    const drives = JSON.parse(localStorage.getItem("drives")) || [];
+    const drives = JSON.parse((await Preferences.get({ key: "drives" })).value || "[]");
     if (drives.length === 0) return;
 
     // How many trips to show (max 3)
@@ -714,8 +726,8 @@ function renderRecentTrips() {
     }
 }
 
-function formatDuration(i) {
-    const drives = JSON.parse(localStorage.getItem("drives")) || [];
+async function formatDuration(i) {
+    const drives = JSON.parse((await Preferences.get({ key: "drives" })).value || "[]");
     if (drives.length === 0) return;
 
     const drive = drives[drives.length - 1 - i];
@@ -737,8 +749,8 @@ function formatDuration(i) {
     return `${formattedDuration}${suffix}`;
 }
 
-function formatTime(i) {
-    const drives = JSON.parse(localStorage.getItem("drives")) || [];
+async function formatTime(i) {
+    const drives = JSON.parse((await Preferences.get({ key: "drives" })).value || "[]");
     if (drives.length === 0) return;
 
     const drive = drives[drives.length - 1 - i];
@@ -779,14 +791,14 @@ const refuelInput = document.getElementById("refuel-input");
 const confirmRefuelBtn = document.getElementById("confirm-refuel-btn");
 const fillTankBtn = document.getElementById("fill-tank-btn");
 
-confirmRefuelBtn.addEventListener("click", () => {
+confirmRefuelBtn.addEventListener("click", async () => {
     const money = Number(refuelInput.value);
     if (!money || money <= 0){
         alert("Please enter a valid amount");
         return;
     };
 
-    const fuelPrice = localStorage.getItem("fuelPrice");
+    const fuelPrice =  Number((await Preferences.get({ key: "fuelPrice" })).value);
     if (!fuelPrice) {
         alert("Fuel price not set");
         return;
@@ -801,17 +813,17 @@ confirmRefuelBtn.addEventListener("click", () => {
     updateIcon();
 });
 
-fillTankBtn.addEventListener("click", () => {
-    localStorage.setItem("fuelRemaining", 44);
+fillTankBtn.addEventListener("click", async () => {
+    Preferences.set({ key: "fuelRemaining", value: "44" });
     updateFuelDisplay();
     refuelPanel.classList.add("invisible");
     updateIcon();
 });
 
-function updateFuelDisplay() {
-    let currentFuel = Number(localStorage.getItem("fuelRemaining") ?? 44);
+async function updateFuelDisplay() {
+    let currentFuel = Number((await Preferences.get({ key: "fuelRemaining" })).value) ?? 44;
 
-    localStorage.setItem("fuelRemaining", currentFuel);
+    Preferences.set({ key: "fuelRemaining", value: currentFuel.toString() });
 
     const percent = (currentFuel / 44) * 100;
 
@@ -829,18 +841,18 @@ function updateFuelDisplay() {
     }
 }
 
-function updateFuelRemaining(fuelUsed) {
-    let currentFuel = Math.max(0, localStorage.getItem("fuelRemaining") - fuelUsed);
-    localStorage.setItem("fuelRemaining", currentFuel);
+async function updateFuelRemaining(fuelUsed) {
+    let currentFuel = Math.max(0, Number((await Preferences.get({ key: "fuelRemaining" })).value) - fuelUsed);
+    Preferences.set({ key: "fuelRemaining", value: currentFuel.toString() });
     updateFuelDisplay();
 }
 
-function addFuel(amount) {
-    let currentFuel = Number(localStorage.getItem("fuelRemaining")) || 0;
+async function addFuel(amount) {
+    let currentFuel = Number((await Preferences.get({ key: "fuelRemaining" })).value) || 0;
 
     let newFuel = Math.min(44, currentFuel + amount);
 
-    localStorage.setItem("fuelRemaining", newFuel);
+    Preferences.set({ key: "fuelRemaining", value: newFuel.toString() });
     updateFuelDisplay();
 }
 
@@ -851,11 +863,11 @@ function addFuel(amount) {
 //}
 
 //////////////////////// Trips Page ////////////////////////
-function renderAllTrips() {
+async function renderAllTrips() {
     const tripsPage = document.getElementById("recent-trips-page-content");
     tripsPage.innerHTML = "";
 
-    const drives = JSON.parse(localStorage.getItem("drives")) || [];
+    const drives = JSON.parse((await Preferences.get({ key: "drives" })).value || "[]");
     if (drives.length === 0) return;
 
     // How many trips to show (max 3)
@@ -935,14 +947,17 @@ function renderAllTrips() {
     }
 }
 
-function deleteDriveByStartTime(startTime) {
-    const drives = JSON.parse(localStorage.getItem("drives")) || [];
+async function deleteDriveByStartTime(startTime) {
+    const drives = JSON.parse((await Preferences.get({ key: "drives" })).value || "[]");
 
     const updatedDrives = drives.filter(
         drive => drive.startTime !== startTime
     );
 
-    localStorage.setItem("drives", JSON.stringify(updatedDrives));
+    await Preferences.set({ 
+        key: 'drives', 
+        value: JSON.stringify(updatedDrives) 
+    });
 }
 
 //////////////////////// Stats Page ////////////////////////
@@ -973,9 +988,9 @@ function getStartOfCurrentWeekMonday() {
     return monday.getTime();
 }
 
-function getDrivesForPeriod(period) {
+async function getDrivesForPeriod(period) {
     const drives =
-        (JSON.parse(localStorage.getItem("drives")) || [])
+        (JSON.parse((await Preferences.get({ key: "drives" })).value || "[]"))
             .map(normalizeDrive);
 
     if (period === "lifetime") return drives;
@@ -1045,8 +1060,8 @@ function calculateStats(drives) {
     };
 }
 
-function getStats(period) {
-    return calculateStats(getDrivesForPeriod(period));
+async function getStats(period) {
+    return calculateStats(await getDrivesForPeriod(period));
 }
 
 // ---------- UI helpers ----------
@@ -1076,8 +1091,8 @@ function createStatItem(label, value) {
     return item;
 }
 
-function createStatsCard(period, titleText) {
-    const stats = getStats(period);
+async function createStatsCard(period, titleText) {
+    const stats = await getStats(period);
 
     const cell = document.createElement("div");
     cell.style.position = "relative";
@@ -1129,23 +1144,23 @@ function createStatsCard(period, titleText) {
 
 // ---------- Main render ----------
 
-function renderStats() {
+async function renderStats() {
     const statsPage = document.getElementById("stats-page-content");
     statsPage.innerHTML = "";
 
     statsPage.style.paddingTop = "60px";
     statsPage.style.paddingBottom = "60px";
 
-    statsPage.appendChild(createStatsCard("week", "This Week"));
-    statsPage.appendChild(createStatsCard("month", "Last 30 days"));
-    statsPage.appendChild(createStatsCard("year", "Yearly Stats"));
-    statsPage.appendChild(createStatsCard("lifetime", "Lifetime Stats"));
+    statsPage.appendChild(await createStatsCard("week", "This Week"));
+    statsPage.appendChild(await createStatsCard("month", "Last 30 days"));
+    statsPage.appendChild(await createStatsCard("year", "Yearly Stats"));
+    statsPage.appendChild(await createStatsCard("lifetime", "Lifetime Stats"));
 }
 
 //////////////////////// Profile Page ////////////////////////
 
-function updateProfileStats() {
-    const drives = JSON.parse(localStorage.getItem("drives")) || [];
+async function updateProfileStats() {
+    const drives = JSON.parse((await Preferences.get({ key: "drives" })).value || "[]");
 
     document.getElementById("total-drives").textContent = 0;
     document.getElementById("total-miles").textContent = 0;
@@ -1195,9 +1210,9 @@ versionBtn.addEventListener("click", () => {
 });
 
 const editBtn = document.getElementById("edit-profile-btn")
-editBtn.addEventListener("click", () => {
+editBtn.addEventListener("click", async () => {
     const value = prompt(
-        "Please enter a new basline mpg\n(Your cars mpg on a ~1hr long drive)\n\nCurrent Baseline: " + localStorage.getItem("baselineMPG") + "mpg\n\nNote: This should be calibrated in comparison to your cars trip computer over multiple drives for the best results.",
+        "Please enter a new basline mpg\n(Your cars mpg on a ~1hr long drive)\n\nCurrent Baseline: " + (await Preferences.get({ key: "baselineMPG" })).value + "mpg\n\nNote: This should be calibrated in comparison to your cars trip computer over multiple drives for the best results.",
         ""
     );
 
@@ -1211,7 +1226,7 @@ editBtn.addEventListener("click", () => {
     }
 
     // Save the new baseline MPG to localStorage
-    localStorage.setItem("baselineMPG", number);
+    Preferences.set({ key: "baselineMPG", value: number.toString() });
     refreshPages();
 });
 
@@ -1223,27 +1238,27 @@ setHomeBtn.addEventListener("click", () => {
 
     if (!confirmed) return;
 
-    navigator.geolocation.getCurrentPosition(pos => {
+    navigator.geolocation.getCurrentPosition(async pos => {
         const location = {
         latitude: pos.coords.latitude,
         longitude: pos.coords.longitude
         };
 
-        localStorage.setItem("location", JSON.stringify(location));
+        await Preferences.set({ key: "location", value: JSON.stringify(location) });
         updateFuelPrice();
         refreshPages();
     })
 });
 
 const resetBtn = document.getElementById("reset-profile-btn")
-resetBtn.addEventListener("click", () => {
+resetBtn.addEventListener("click", async () => {
     const confirmed = confirm(
         "Are you sure you want to reset your profile?\n\nThis will delete all saved data."
     );
 
     if (!confirmed) return;
 
-    localStorage.clear();
+    await Preferences.clear();
     refreshPages();
 
     const fuelPriceText = document.getElementById("fuel-price");
@@ -1252,12 +1267,12 @@ resetBtn.addEventListener("click", () => {
     }
 });
 
-function updateProfileButtons() {
+async function updateProfileButtons() {
     const carBtn = document.getElementById("edit-profile-btn");
     const homeBtn = document.getElementById("set-profile-home-btn");
 
-    const hasMpg = !!localStorage.getItem("baselineMPG");
-    const hasHome = !!localStorage.getItem("location");
+    const hasMpg = !!(await Preferences.get({ key: "baselineMPG" })).value;
+    const hasHome = !!(await Preferences.get({ key: "location" })).value;
 
     setButtonState(carBtn, hasMpg);
     setButtonState(homeBtn, hasHome);
