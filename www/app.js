@@ -570,7 +570,7 @@ startBtn.addEventListener("click", () => {
 });
 stopBtn.addEventListener("click",async () => {
     stopGPS();
-    stopDrive();
+    await stopDrive();
     resetPauseIcon();
     exitDrivingMode();
     await refreshPages();
@@ -1246,7 +1246,7 @@ setHomeBtn.addEventListener("click", () => {
         };
 
         await Preferences.set({ key: "location", value: JSON.stringify(location) });
-        updateFuelPrice();
+        await updateFuelPrice();
         await refreshPages();
     })
 });
