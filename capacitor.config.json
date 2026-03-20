@@ -1,5 +1,8 @@
 {
   "appId": "com.archie.routevision",
   "appName": "RouteVision",
-  "webDir": "www"
+  "webDir": "www",
+  "ios": {
+    "contentInset": "always"
+  }
 }

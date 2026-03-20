@@ -717,9 +717,9 @@ async function renderRecentTrips() {
 
         cell.textContent =
             drive.date + " @ " +
-            formatTime(i) + " | " +
+            await formatTime(i) + " | " +
             drive.distanceMiles + "mi | " +
-            formatDuration(i) + " | " +
+            await formatDuration(i) + " | " +
             drive.estimatedMPG + "mpg";
 
         recentTripsPanel.appendChild(cell);
@@ -899,7 +899,7 @@ async function renderAllTrips() {
 
         // ---- line 1 ----
         const line1 = document.createElement("span");
-        line1.textContent = `${drive.date} @ ${formatTime(i)}`;
+        line1.textContent = `${drive.date} @ ${await formatTime(i)}`;
         line1.style.fontSize = "16px";
         line1.style.fontWeight = "700";
 
@@ -913,7 +913,7 @@ async function renderAllTrips() {
 
         line2.style.whiteSpace = "pre-line";
         line2.textContent = 
-            `${formatDuration(i)} | ${drive.distanceMiles}mi | ${drive.averageSpeedMPH}mph
+            `${await formatDuration(i)} | ${drive.distanceMiles}mi | ${drive.averageSpeedMPH}mph
             ${drive.estimatedMPG}mpg | ${drive.fuelUsedLitres}l | £${price.toFixed(2)}`;
         line2.style.fontSize = "15px";
         line2.style.fontWeight = "600";
