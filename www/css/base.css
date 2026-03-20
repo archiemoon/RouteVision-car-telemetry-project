@@ -16,7 +16,6 @@ body {
     "Segoe UI", Roboto, 
     "Helvetica Neue", Arial, sans-serif;
     background-color: var(--bg-main);
-    padding-top: env(safe-area-inset-top);
 }
 
 body.dark {

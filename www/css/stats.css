@@ -3,6 +3,6 @@
 ///////////////////////////////*/
 
 #statistics-page {
-    margin-top: 75px;
+    margin-top: calc(70px + env(safe-area-inset-top));
     margin-bottom: 100px;
 }

@@ -3,7 +3,7 @@
 ///////////////////////////////*/
 
 #home-page {
-    margin-top: 70px;
+    margin-top: calc(70px + env(safe-area-inset-top));
     margin-bottom: 100px;
 }
 

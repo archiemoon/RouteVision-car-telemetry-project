@@ -20,6 +20,7 @@
     width: 100%;
 
     background-color: var(--bg-main);
+    padding-top: env(safe-area-inset-top);
 
     display: flex;
     flex-direction: row;
