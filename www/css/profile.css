@@ -2,7 +2,7 @@
 // Profile Page Styling
 ///////////////////////////////*/
 #profile-page {
-    margin-top: calc(70px + env(safe-area-inset-top));
+    margin-top: 75px;
     margin-bottom: 100px;
 }
 
