@@ -1265,6 +1265,7 @@ setHomeBtn.addEventListener("click", async () => {
             latitude: coords.latitude,
             longitude: coords.longitude
         };
+        console.log(location);
         await Preferences.set({ key: "location", value: JSON.stringify(location) });
         await updateFuelPrice();
         await refreshPages();
