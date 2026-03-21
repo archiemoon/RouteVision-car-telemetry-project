@@ -1492,7 +1492,7 @@ async function updateProfileStats() {
 const versionBtn = document.getElementById("release-version-btn")
 versionBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.1.8"
+        "Current Release Version: v1.2.0"
     );
 
     if (!confirmed) return;
@@ -1501,7 +1501,7 @@ versionBtn.addEventListener("click", () => {
 const editBtn = document.getElementById("edit-profile-btn")
 editBtn.addEventListener("click", async () => {
     const value = prompt(
-        "Please enter a new basline mpg\n(Your cars mpg on a ~1hr long drive)\n\nCurrent Baseline: " + (await Preferences.get({ key: "baselineMPG" })).value + "mpg\n\nNote: This should be calibrated in comparison to your cars trip computer over multiple drives for the best results.",
+        "Please enter a new basline mpg (used when no OBD is connected)\n(Your cars mpg on a ~1hr long drive)\n\nCurrent Baseline: " + (await Preferences.get({ key: "baselineMPG" })).value + "mpg\n\nNote: This should be calibrated in comparison to your cars trip computer over multiple drives for the best results.",
         ""
     );
 
