@@ -1240,28 +1240,37 @@ editBtn.addEventListener("click", async () => {
 });
 
 const setHomeBtn = document.getElementById("set-profile-home-btn");
-setHomeBtn.addEventListener("click", () => {
+setHomeBtn.addEventListener("click", async () => {
     const confirmed = confirm(
         "Are you sure you want to set your current location as your Home?\n\nThis is used to obtain your local fuel price.\n\nNo location will revert to national average price."
     );
 
     if (!confirmed) return;
 
-    navigator.geolocation.getCurrentPosition(async pos => {
-        const location = {
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude
-        };
+    let coords;
 
-        await Preferences.set({ key: "location", value: JSON.stringify(location) });
-        await updateFuelPrice();
-        await refreshPages();
-    },
+        if (Geolocation) {
+            // Native Capacitor path
+            await Geolocation.requestPermissions();
+            const position = await Geolocation.getCurrentPosition({ enableHighAccuracy: true });
+            coords = position.coords;
+        } else {
+            // Browser fallback
+            const position = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true });
+            });
+            coords = position.coords;
+        }
+
+        const location = {
+            latitude: coords.latitude,
+            longitude: coords.longitude
+        };
     (err) => {
         // add this error handler to see if geolocation is failing
         console.error("Geolocation failed:", err);
         alert("Could not get location: " + err.message);
-    });
+    }
 });
 
 const resetBtn = document.getElementById("reset-profile-btn")
