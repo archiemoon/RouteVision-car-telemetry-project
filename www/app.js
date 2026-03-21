@@ -1251,7 +1251,6 @@ setHomeBtn.addEventListener("click", async () => {
 
         if (Geolocation) {
             // Native Capacitor path
-            await Geolocation.requestPermissions();
             const position = await Geolocation.getCurrentPosition({ enableHighAccuracy: true });
             coords = position.coords;
         } else {
