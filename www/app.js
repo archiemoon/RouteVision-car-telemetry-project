@@ -5,6 +5,13 @@ const Preferences = window.Capacitor?.Plugins?.Preferences ?? {
     clear: async () => localStorage.clear(),
 };
 
+async function setStatusBarColor(isDark) {
+    const StatusBar = window.Capacitor?.Plugins?.StatusBar;
+    if (!StatusBar) return;
+    await StatusBar.setBackgroundColor({ color: isDark ? '#212121' : '#F9F8F8' });
+    await StatusBar.setStyle({ style: isDark ? 'DARK' : 'LIGHT' });
+}
+
 renderHomePage()
 
 ////////////////////////
@@ -25,16 +32,6 @@ async function init() {
     updateThemeIcon();
 }
 init();
-
-const { StatusBar, Style } = window.Capacitor?.Plugins?.StatusBar 
-    ? { StatusBar: window.Capacitor.Plugins.StatusBar, Style: { Dark: 'DARK', Light: 'LIGHT' } }
-    : { StatusBar: null, Style: null };
-
-async function setStatusBarColor(isDark) {
-    if (!StatusBar) return;
-    await StatusBar.setBackgroundColor({ color: isDark ? '#212121' : '#F9F8F8' });
-    await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
-}
 
 
 // -------------------- Tunable constants --------------------
