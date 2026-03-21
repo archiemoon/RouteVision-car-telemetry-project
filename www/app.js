@@ -311,7 +311,17 @@ async function connectOBD(silent = false) {
             const result = await BLE.requestDevice({ services: [BLE_SERVICE] });
             deviceId = result.deviceId;
             console.log("OBD device found:", result.name, deviceId);
-            await BLE.connect({ deviceId });
+            await BLE.connect({ 
+                deviceId,
+                onDisconnected: () => {
+                    console.warn("OBD disconnected unexpectedly");
+                    obdConnected = false;
+                    bleDeviceId = null;
+                    stopOBDPolling();
+                    updateOBDStatus(false);
+                    // GPS fuel model automatically takes over since obdConnected is now false
+                }
+            });
             await Preferences.set({ key: 'obdDeviceId', value: deviceId });
         }
 
