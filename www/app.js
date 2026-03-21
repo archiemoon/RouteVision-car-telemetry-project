@@ -1246,7 +1246,7 @@ setHomeBtn.addEventListener("click", async () => {
     );
 
     if (!confirmed) return;
-
+    console.log("Attempting geolocation...");
     try {
         const position = await new Promise((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(resolve, reject, { 
