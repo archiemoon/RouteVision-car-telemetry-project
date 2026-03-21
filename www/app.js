@@ -1247,30 +1247,25 @@ setHomeBtn.addEventListener("click", async () => {
 
     if (!confirmed) return;
 
-    let coords;
-
-        if (Geolocation) {
-            // Native Capacitor path
-            const position = await Geolocation.getCurrentPosition({ enableHighAccuracy: true });
-            coords = position.coords;
-        } else {
-            // Browser fallback
-            const position = await new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true });
+    try {
+        const position = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { 
+                enableHighAccuracy: true, 
+                timeout: 10000 
             });
-            coords = position.coords;
-        }
+        });
 
         const location = {
-            latitude: coords.latitude,
-            longitude: coords.longitude
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
         };
-        console.log(location);
+
+        console.log("Location saved:", location);
         await Preferences.set({ key: "location", value: JSON.stringify(location) });
         await updateFuelPrice();
         await refreshPages();
-    (err) => {
-        // add this error handler to see if geolocation is failing
+
+    } catch (err) {
         console.error("Geolocation failed:", err);
         alert("Could not get location: " + err.message);
     }
