@@ -30,6 +30,8 @@ async function init() {
     if (isDark) document.body.classList.add("dark");
     await setStatusBarColor(isDark);
     updateThemeIcon();
+
+    connectOBD(true);
 }
 init();
 
@@ -81,6 +83,7 @@ function startDrive() {
     };
 
     startActiveTimer();
+    connectOBD(true);
 }
 
 function startActiveTimer() {
@@ -93,7 +96,7 @@ function startActiveTimer() {
         liveDrive.activeSeconds += 1;
 
         // IDLE FUEL (time-based)
-        if (liveDrive.lastSpeedKph < 3) {
+        if (!obdConnected && liveDrive.lastSpeedKph < 3) {
             const deltaHours = 1 / 3600;
             liveDrive.fuelUsedLitres += IDLE_LITRES_PER_HOUR * deltaHours;
         }
@@ -260,6 +263,261 @@ function handlePositionUpdate(position) {
 }
 
 // ============================================================
+// OBD-II Bluetooth (Veepeak BLE)
+// ============================================================
+
+const BLE_SERVICE     = 'fff0';
+const BLE_NOTIFY_CHAR = 'fff1';
+const BLE_WRITE_CHAR  = 'fff2';
+
+let bleDeviceId = null;
+let obdConnected = false;
+let responseBuffer = '';
+
+function getBLE() {
+    return window.Capacitor?.Plugins?.BluetoothLe ?? null;
+}
+
+async function connectOBD(silent = false) {
+    const BLE = getBLE();
+    if (!BLE) { console.warn("BLE plugin not available"); return; }
+
+    try {
+        await BLE.initialize();
+
+        // Try to reconnect to last known device first
+        const savedId = (await Preferences.get({ key: 'obdDeviceId' })).value;
+        let deviceId = null;
+
+        if (savedId) {
+            try {
+                console.log("Trying to reconnect to saved OBD device...");
+                await BLE.connect({ deviceId: savedId, timeout: 5000 });
+                deviceId = savedId;
+                console.log("Reconnected to saved device");
+            } catch (e) {
+                console.warn("Saved device not available, scanning...");
+                deviceId = null;
+            }
+        }
+
+        if (!deviceId) {
+            if (silent) {
+                // Called from startDrive — don't show picker, just give up quietly
+                console.log("OBD not available, using GPS model");
+                return;
+            }
+            // Called from button — show picker
+            const result = await BLE.requestDevice({ services: [BLE_SERVICE] });
+            deviceId = result.deviceId;
+            console.log("OBD device found:", result.name, deviceId);
+            await BLE.connect({ deviceId });
+            await Preferences.set({ key: 'obdDeviceId', value: deviceId });
+        }
+
+        bleDeviceId = deviceId;
+        obdConnected = true;
+
+        // Listen for responses
+        await BLE.startNotifications({
+            deviceId: bleDeviceId,
+            service: BLE_SERVICE,
+            characteristic: BLE_NOTIFY_CHAR,
+            callback: (result) => {
+                const chunk = new TextDecoder().decode(
+                    new Uint8Array(Object.values(result.value))
+                );
+                responseBuffer += chunk;
+                processOBDBuffer();
+            }
+        });
+
+        // Initialise ELM327
+        await sendOBD('ATZ');
+        await delay(1000);
+        await sendOBD('ATE0');
+        await sendOBD('ATL0');
+        await sendOBD('ATS0');
+        await sendOBD('ATH0');
+        await sendOBD('ATSP0');
+
+        updateOBDStatus(true);
+        startOBDPolling();
+
+    } catch (err) {
+        console.error("OBD connect failed:", err);
+        obdConnected = false;
+        updateOBDStatus(false);
+        if (!silent) {
+            alert("Could not connect to OBD scanner: " + err.message);
+        }
+    }
+}
+
+async function disconnectOBD() {
+    const BLE = getBLE();
+    if (!BLE || !bleDeviceId) return;
+
+    stopOBDPolling();
+
+    try {
+        await BLE.stopNotifications({
+            deviceId: bleDeviceId,
+            service: BLE_SERVICE,
+            characteristic: BLE_NOTIFY_CHAR,
+        });
+        await BLE.disconnect({ deviceId: bleDeviceId });
+    } catch (err) {
+        console.warn("OBD disconnect error:", err);
+    }
+
+    bleDeviceId = null;
+    obdConnected = false;
+    updateOBDStatus(false);
+    console.log("OBD disconnected");
+}
+
+function sendOBD(cmd) {
+    const BLE = getBLE();
+    if (!BLE || !bleDeviceId) return Promise.resolve();
+
+    const encoded = new TextEncoder().encode(cmd + '\r');
+    const value = Array.from(encoded).reduce((obj, val, i) => {
+        obj[i] = val; return obj;
+    }, {});
+
+    return BLE.write({
+        deviceId: bleDeviceId,
+        service: BLE_SERVICE,
+        characteristic: BLE_WRITE_CHAR,
+        value: { buffer: encoded.buffer }
+    }).catch(err => console.warn("OBD write error:", err));
+}
+
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ---- Response parsing ----
+
+const pendingResolvers = {};
+let currentPID = null;
+
+function processOBDBuffer() {
+    if (!responseBuffer.includes('>')) return;
+
+    const parts = responseBuffer.split('>');
+    responseBuffer = parts.pop(); // keep incomplete part
+
+    for (const raw of parts) {
+        const cleaned = raw.trim().replace(/\s/g, '');
+        if (!cleaned || cleaned === 'OK' || cleaned.startsWith('AT')) continue;
+
+        if (currentPID && pendingResolvers[currentPID]) {
+            pendingResolvers[currentPID](cleaned);
+            delete pendingResolvers[currentPID];
+            currentPID = null;
+        }
+    }
+}
+
+function queryPID(pid) {
+    return new Promise((resolve) => {
+        currentPID = pid;
+        pendingResolvers[pid] = resolve;
+        sendOBD('01' + pid);
+
+        // Timeout after 2s
+        setTimeout(() => {
+            if (pendingResolvers[pid]) {
+                delete pendingResolvers[pid];
+                currentPID = null;
+                resolve(null);
+            }
+        }, 2000);
+    });
+}
+
+// ---- PID decoders ----
+
+function decodeMAF(response) {
+    // PID 10: MAF air flow rate
+    // Response: 4110AABB → value = (AA*256 + BB) / 100 g/s
+    if (!response || response.length < 8) return null;
+    const aa = parseInt(response.substring(4, 6), 16);
+    const bb = parseInt(response.substring(6, 8), 16);
+    if (isNaN(aa) || isNaN(bb)) return null;
+    return (aa * 256 + bb) / 100; // g/s
+}
+
+function decodeSpeed(response) {
+    // PID 0D: vehicle speed
+    // Response: 410DAA → value = AA km/h
+    if (!response || response.length < 6) return null;
+    const aa = parseInt(response.substring(4, 6), 16);
+    if (isNaN(aa)) return null;
+    return aa; // km/h
+}
+
+function mafToLPer100(mafGs, speedKph) {
+    if (!speedKph || speedKph < 2) return null;
+    // MAF (g/s) → fuel flow using stoichiometric ratio (14.7:1) and petrol density (750 g/L)
+    const fuelFlowLPerS = mafGs / (14.7 * 750);
+    const fuelFlowLPerH = fuelFlowLPerS * 3600;
+    return (fuelFlowLPerH / speedKph) * 100; // L/100km
+}
+
+// ---- Polling loop ----
+
+let obdPollInterval = null;
+
+function startOBDPolling() {
+    if (obdPollInterval) return;
+    obdPollInterval = setInterval(pollOBD, 500);
+}
+
+function stopOBDPolling() {
+    clearInterval(obdPollInterval);
+    obdPollInterval = null;
+}
+
+async function pollOBD() {
+    if (!obdConnected || !liveDrive) return;
+
+    // Poll MAF
+    const mafRaw = await queryPID('10');
+    const mafGs = decodeMAF(mafRaw);
+
+    // Poll Speed
+    const speedRaw = await queryPID('0D');
+    const speedKph = decodeSpeed(speedRaw);
+
+    if (mafGs !== null) {
+        // Override the GPS-based fuel model with real MAF data
+        const deltaSeconds = 0.5; // polling interval
+        const fuelFlowLPerS = mafGs / (14.7 * 750);
+        liveDrive.fuelUsedLitres += fuelFlowLPerS * deltaSeconds;
+        console.log(`MAF: ${mafGs.toFixed(2)}g/s | Fuel: ${liveDrive.fuelUsedLitres.toFixed(3)}L`);
+    }
+
+    if (speedKph !== null) {
+        liveDrive.lastSpeedKph = speedKph;
+    }
+}
+
+// ---- UI status ----
+
+function updateOBDStatus(connected) {
+    const btn = document.getElementById("obd-connect-btn");
+    const dot = document.getElementById("obd-status-dot");
+    if (!btn) return;
+
+    if (dot) {
+        dot.classList.toggle("connected", connected);
+    }
+}
+
+// ============================================================
 // Fuel model updates (UPDATED + NEW LOW-LOAD IMPROVEMENTS)
 // ============================================================
 
@@ -345,6 +603,8 @@ function updateLiveFromSpeed(speedKphRaw, deltaSeconds) {
     if (speedKph >= 2) {
         updateDistance(speedKph, deltaSeconds);
     }
+
+    if (obdConnected) return;
 
     const deltaDistanceKm = liveDrive.distanceKm - prevDistance;
     if (deltaDistanceKm <= 0) return;
@@ -578,6 +838,7 @@ startBtn.addEventListener("click", () => {
 });
 stopBtn.addEventListener("click",async () => {
     stopGPS();
+    await disconnectOBD();
     await stopDrive();
     resetPauseIcon();
     exitDrivingMode();
@@ -690,6 +951,15 @@ async function getLocalE10Price(lat, lng) {
         ? data.avgE10PencePerLitre
         : null;
 }
+
+const obdBtn = document.getElementById("obd-connect-btn");
+obdBtn.addEventListener("click", async () => {
+    if (obdConnected) {
+        await disconnectOBD();
+    } else {
+        await connectOBD();
+    }
+});
 
 ////////////////////////
 // Recent Trips 

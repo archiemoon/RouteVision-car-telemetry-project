@@ -182,6 +182,63 @@
     font-weight: 600;
 }
 
+.bluetooth-content-panel {
+    width: min(80vw, 900px);
+
+    background: var(--bg-panel);
+    box-shadow: 0 4px 15px 0 var(--shadow);
+    border-radius: 30px;
+
+    font-weight: bold;
+    color: var(--text-main);
+    margin: 30px auto 0;
+}
+
+#bluetooth-connection-overview{
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    width: 60px;
+}
+
+#obd-connect-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50px;
+    border: none;
+
+    background: var(--internal-container);
+    box-shadow: 0 0 6px 2px var(--shadow);
+    color: var(--text-main);
+
+    font-size: 22px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#obd-status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--red-accent);
+    box-shadow: 0 0 6px 2px color-mix(in srgb, var(--red-accent) 100%, transparent);
+    margin-left: 6px;
+    vertical-align: middle;
+    transition: background-color 0.3s ease;
+}
+
+#obd-status-dot.connected {
+    background-color: var(--green-accent);
+    box-shadow: 0 0 6px 2px color-mix(in srgb, var(--green-accent) 100%, transparent);
+}
+
 .invisible {
     display: none !important;
 } 
