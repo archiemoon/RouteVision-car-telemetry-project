@@ -1265,6 +1265,9 @@ setHomeBtn.addEventListener("click", async () => {
             latitude: coords.latitude,
             longitude: coords.longitude
         };
+        await Preferences.set({ key: "location", value: JSON.stringify(location) });
+        await updateFuelPrice();
+        await refreshPages();
     (err) => {
         // add this error handler to see if geolocation is failing
         console.error("Geolocation failed:", err);
