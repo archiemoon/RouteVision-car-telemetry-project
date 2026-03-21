@@ -15,8 +15,9 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, 
     "Segoe UI", Roboto, 
     "Helvetica Neue", Arial, sans-serif;
-    background-color: var(--bg-main);
     padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    background-color: var(--bg-main);
 }
 
 body.dark {

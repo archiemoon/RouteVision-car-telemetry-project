@@ -19,12 +19,23 @@ async function init() {
     LITRES_PER_100KM = 282.481 / (Number(baselineMPG) || 53);
 
     const savedTheme = (await Preferences.get({ key: 'theme' })).value
-    if (savedTheme === "dark") {
-    document.body.classList.add("dark");
-    }
+    const isDark = savedTheme === "dark";
+    if (isDark) document.body.classList.add("dark");
+    await setStatusBarColor(isDark);
     updateThemeIcon();
 }
 init();
+
+const { StatusBar, Style } = window.Capacitor?.Plugins?.StatusBar 
+    ? { StatusBar: window.Capacitor.Plugins.StatusBar, Style: { Dark: 'DARK', Light: 'LIGHT' } }
+    : { StatusBar: null, Style: null };
+
+async function setStatusBarColor(isDark) {
+    if (!StatusBar) return;
+    await StatusBar.setBackgroundColor({ color: isDark ? '#212121' : '#F9F8F8' });
+    await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
+}
+
 
 // -------------------- Tunable constants --------------------
 let LITRES_PER_100KM = 5.3; // calibrated to your car's real-world MPG (will be overridden by saved value if set)
@@ -607,12 +618,12 @@ function updateThemeIcon() {
 
 async function toggleDarkMode() {
     document.body.classList.toggle("dark");
-
+    const isDark = document.body.classList.contains("dark");
+    await setStatusBarColor(isDark);
     await Preferences.set({
         key: 'theme',
-        value: document.body.classList.contains("dark") ? "dark" : "light"
+        value: isDark ? "dark" : "light"
     });
-
     updateThemeIcon();
 }
 
