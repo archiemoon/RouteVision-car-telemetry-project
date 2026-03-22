@@ -95,6 +95,7 @@ function startDrive() {
         startTime: now,
         lastSpeedKph: 0,
         recentSpeeds: [],
+        altitudeSamples: [],
         lastGpsTime: null,
         prevSmoothSpeedKph: null,
         activeSeconds: 0,
@@ -173,7 +174,8 @@ async function stopDrive() {
         averageSpeedMPH: (getAverageSpeed() * 0.621371).toFixed(1),
         fuelUsedLitres: liveDrive.fuelUsedLitres.toFixed(3),
         fuelCost: Number.isFinite(fuelCost) ? fuelCost : 0,
-        estimatedMPG: calculateMPG(liveDrive.distanceKm, liveDrive.fuelUsedLitres).toFixed(1)
+        estimatedMPG: calculateMPG(liveDrive.distanceKm, liveDrive.fuelUsedLitres).toFixed(1),
+        altitudeSamples: liveDrive.altitudeSamples
     };
 
     
@@ -249,6 +251,11 @@ function handlePositionUpdate(position) {
 
     const speedKph = speedMps * 3.6;
     liveDrive.lastSpeedKph = speedKph;
+
+    const alt = position.coords.altitude;
+    if (alt !== null && Number.isFinite(alt)) {
+        liveDrive.altitudeSamples.push(Math.round(alt));
+    }
 
     // Store recent speeds for smoothing / stability
     liveDrive.recentSpeeds.push(speedKph);
@@ -924,6 +931,17 @@ async function toggleDarkMode() {
 const switcherBtn = document.getElementById("top-bar-mode-btn");
 switcherBtn.addEventListener("click", toggleDarkMode);
 
+////////////////////////
+// Profile picture / Button
+////////////////////////
+
+const profileBtn = document.getElementById("top-bar-icon");
+profileBtn.addEventListener("click", () => {
+    showPage("profile-page");
+    updateProfileStats();
+    setActiveNav("profile-btn");
+});
+
 //////////////////////// Home Page ////////////////////////
 
 async function updateFuelPrice() {
@@ -1200,6 +1218,60 @@ async function addFuel(amount) {
 //}
 
 //////////////////////// Trips Page ////////////////////////
+function smoothSamples(samples, windowSize = 8) {
+    return samples.map((_, i) => {
+        const start = Math.max(0, i - Math.floor(windowSize / 2));
+        const end = Math.min(samples.length, start + windowSize);
+        const slice = samples.slice(start, end);
+        return slice.reduce((a, b) => a + b, 0) / slice.length;
+    });
+}
+
+function renderElevationChart(samples) {
+    if (!samples || samples.length < 2) return "<p style='color:var(--text-accent);font-size:13px'>No elevation data recorded</p>";
+
+    // Downsample to max 100 points for performance
+    const maxPoints = 200;
+    const step = Math.max(1, Math.floor(samples.length / maxPoints));
+    const pts = samples.filter((_, i) => i % step === 0);
+
+    // Smooth to reduce GPS altitude noise
+    const smoothed = smoothSamples(pts, 8);
+
+    const w = 300, h = 80, pad = 4;
+    const min = Math.min(...smoothed);
+    const max = Math.max(...smoothed);
+    const range = max - min || 1;
+
+    // Build SVG polyline points
+    const points = smoothed.map((alt, i) => {
+        const x = pad + (i / (smoothed.length - 1)) * (w - pad * 2);
+        const y = h - pad - ((alt - min) / range) * (h - pad * 2);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+
+    // Build filled area path
+    const firstX = pad;
+    const lastX = (w - pad).toFixed(1);
+    const areaPoints = `${firstX},${h - pad} ${points} ${lastX},${h - pad}`;
+
+    return `
+        <div style="font-size:12px;color:var(--text-accent);margin-bottom:4px">
+            Elevation: ${min}m – ${max}m &nbsp;|&nbsp; Gain: ${(max - min)}m
+        </div>
+        <svg width="100%" viewBox="0 0 ${w} ${h}" style="display:block">
+            <defs>
+                <linearGradient id="elev-grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="var(--green-accent)" stop-opacity="0.5"/>
+                    <stop offset="100%" stop-color="var(--green-accent)" stop-opacity="0.05"/>
+                </linearGradient>
+            </defs>
+            <polygon points="${areaPoints}" fill="url(#elev-grad)"/>
+            <polyline points="${points}" fill="none" stroke="var(--green-accent)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+        </svg>
+    `;
+}
+
 async function renderAllTrips() {
     const tripsPage = document.getElementById("recent-trips-page-content");
     tripsPage.innerHTML = "";
@@ -1207,11 +1279,14 @@ async function renderAllTrips() {
     const drives = JSON.parse((await Preferences.get({ key: "drives" })).value || "[]");
     if (drives.length === 0) return;
 
-    // How many trips to show (max 3)
     const count = drives.length;
 
     for (let i = 0; i < count; i++) {
         const drive = drives[drives.length - 1 - i];
+
+        // ---- wrapper ----
+        const wrapper = document.createElement("div");
+        wrapper.style.marginBottom = "8px";
 
         const cell = document.createElement("div");
         cell.style.position = "relative";
@@ -1225,7 +1300,7 @@ async function renderAllTrips() {
         cell.style.backgroundColor = "var(--bg-panel)";
         cell.style.color = "var(--text-main)";
         cell.style.boxShadow = "0 0px 4px 0 var(--shadow)";
-        cell.style.margin = "10px 2px 8px 2px";
+        cell.style.margin = "15px 2px 0 2px";
         cell.style.padding = "0 12px";
 
         // ---- text ----
@@ -1246,15 +1321,64 @@ async function renderAllTrips() {
         const price =
             Number.isFinite(drive.fuelCost)
                 ? drive.fuelCost
-                : (drive.fuelUsedLitres * (DEFAULT_FUEL_PRICE/100)); // if no price saved, revert to fixed value
+                : (drive.fuelUsedLitres * (DEFAULT_FUEL_PRICE / 100));
 
         line2.style.whiteSpace = "pre-line";
-        line2.textContent = 
+        line2.textContent =
             `${await formatDuration(i)} | ${drive.distanceMiles}mi | ${drive.averageSpeedMPH}mph
             ${drive.estimatedMPG}mpg | ${drive.fuelUsedLitres}l | £${price.toFixed(2)}`;
         line2.style.fontSize = "15px";
         line2.style.fontWeight = "600";
         line2.style.color = "var(--text-accent)";
+
+        // ---- more button ----
+        const moreButton = document.createElement("button");
+        moreButton.className = "fa-solid fa-angle-down";
+        moreButton.style.borderRadius = "50%";
+        moreButton.style.backgroundColor = "var(--bg-panel)";
+        moreButton.style.boxShadow = "0 0px 6px 1px var(--shadow)";
+        moreButton.style.color = "var(--text-accent)";
+        moreButton.style.fontSize = "19px";
+        moreButton.style.border = "none";
+        moreButton.style.width = "30px";
+        moreButton.style.height = "30px";
+        moreButton.style.position = "absolute";
+        moreButton.style.right = "55px";
+        moreButton.style.top = "50%";
+        moreButton.style.transform = "translateY(-50%)";
+
+        let expanded = false;
+        let elevationCell = null;
+
+        moreButton.onclick = () => {
+            if (expanded) {
+                if (elevationCell) elevationCell.remove();
+                elevationCell = null;
+                expanded = false;
+                moreButton.classList.remove("fa-angle-up");
+                moreButton.classList.add("fa-angle-down");
+            } else {
+                elevationCell = document.createElement("div");
+                elevationCell.style.borderRadius = "15px";
+                elevationCell.style.backgroundColor = "var(--bg-panel)";
+                elevationCell.style.boxShadow = "0 0px 4px 0 var(--shadow)";
+                elevationCell.style.padding = "12px";
+                elevationCell.style.margin = "4px 2px 0 2px";
+                elevationCell.style.color = "var(--text-main)";
+                elevationCell.style.fontSize = "15px";
+                elevationCell.style.fontWeight = "600";
+
+                elevationCell.innerHTML = `
+                    <div style="margin-bottom:8px">Elevation Map:</div>
+                    ${renderElevationChart(drive.altitudeSamples)}
+                `;
+
+                wrapper.appendChild(elevationCell);
+                expanded = true;
+                moreButton.classList.remove("fa-angle-down");
+                moreButton.classList.add("fa-angle-up");
+            }   
+        };
 
         // ---- delete button ----
         const deleteButton = document.createElement("button");
@@ -1272,15 +1396,16 @@ async function renderAllTrips() {
             deleteDriveByStartTime(drive.startTime);
             let fuelUsed = Number(drive.fuelUsedLitres) || 0;
             addFuel(fuelUsed);
-            cell.remove();
+            wrapper.remove(); // ← remove wrapper not just cell
         };
 
         text.appendChild(line1);
         text.appendChild(line2);
         cell.appendChild(text);
+        cell.appendChild(moreButton);
         cell.appendChild(deleteButton);
-
-        tripsPage.appendChild(cell);
+        wrapper.appendChild(cell);
+        tripsPage.appendChild(wrapper);
     }
 }
 
