@@ -1004,7 +1004,7 @@ fuelTypeBtn.addEventListener("click", async () => {
     const newType = currentType === "E10" ? "B7" : "E10";
     const newTypeName = currentType === "E10" ? "Diesel" : "Petrol";
 
-    const confirmed = confirm(`Switch fuel type to ${newType} ${newTypeName}?`);
+    const confirmed = confirm(`Switch fuel to: ${newType} ${newTypeName}?`);
     if (!confirmed) return;
 
     await Preferences.set({ key: "fuelType", value: newType });
