@@ -1257,7 +1257,7 @@ function renderElevationChart(samples) {
 
     return `
         <div style="font-size:12px;color:var(--text-accent);margin-bottom:4px">
-            Elevation: ${min}m – ${max}m &nbsp;|&nbsp; Gain: ${(max - min)}m
+            Elevation: ${Math.round(min)}m – ${Math.round(max)}m &nbsp;|&nbsp; Gain: ${Math.round(max - min)}m
         </div>
         <svg width="100%" viewBox="0 0 ${w} ${h}" style="display:block">
             <defs>
