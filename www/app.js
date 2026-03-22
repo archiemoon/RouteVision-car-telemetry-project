@@ -1002,8 +1002,9 @@ const fuelTypeBtn = document.getElementById("fuel-price-box");
 fuelTypeBtn.addEventListener("click", async () => {
     const currentType = (await Preferences.get({ key: "fuelType" })).value || "E10";
     const newType = currentType === "E10" ? "B7" : "E10";
+    const newTypeName = currentType === "E10" ? "Diesel" : "Petrol";
 
-    const confirmed = confirm(`Switch fuel type to ${newType}?`);
+    const confirmed = confirm(`Switch fuel type to ${newType} ${newTypeName}?`);
     if (!confirmed) return;
 
     await Preferences.set({ key: "fuelType", value: newType });
