@@ -293,6 +293,8 @@ async function connectOBD(silent = false) {
             try {
                 console.log("Trying to reconnect to saved OBD device...");
                 await BLE.connect({ deviceId: savedId, timeout: 5000 });
+                await BLE.discoverServices({ deviceId: savedId }); // ← add this
+                await delay(500);  
                 deviceId = savedId;
                 console.log("Reconnected to saved device");
             } catch (e) {
@@ -322,6 +324,8 @@ async function connectOBD(silent = false) {
                     // GPS fuel model automatically takes over since obdConnected is now false
                 }
             });
+            await BLE.discoverServices({ deviceId });
+            await delay(500);
             await Preferences.set({ key: 'obdDeviceId', value: deviceId });
         }
 
@@ -329,6 +333,7 @@ async function connectOBD(silent = false) {
         obdConnected = true;
 
         // Listen for responses
+        await delay(1000);
         await BLE.startNotifications({
             deviceId: bleDeviceId,
             service: BLE_SERVICE,
