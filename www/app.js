@@ -1300,8 +1300,8 @@ async function renderAllTrips() {
         cell.style.fontWeight = "700";
         cell.style.backgroundColor = "var(--bg-panel)";
         cell.style.color = "var(--text-main)";
-        cell.style.boxShadow = "0 0px 4px 0 var(--shadow)";
-        cell.style.margin = "15px 2px 0 2px";
+        cell.style.boxShadow = "0 0px 7px 1px var(--shadow)";
+        cell.style.margin = "15px 10px 0 10px";
         cell.style.padding = "0 12px";
 
         // ---- text ----
@@ -1362,9 +1362,9 @@ async function renderAllTrips() {
                 elevationCell = document.createElement("div");
                 elevationCell.style.borderRadius = "15px";
                 elevationCell.style.backgroundColor = "var(--bg-panel)";
-                elevationCell.style.boxShadow = "0 0px 4px 0 var(--shadow)";
+                elevationCell.style.boxShadow = "0 0px 6px 1px var(--shadow)";
                 elevationCell.style.padding = "12px";
-                elevationCell.style.margin = "4px 2px 0 2px";
+                elevationCell.style.margin = "6px 25px 0 25px";
                 elevationCell.style.color = "var(--text-main)";
                 elevationCell.style.fontSize = "15px";
                 elevationCell.style.fontWeight = "600";
