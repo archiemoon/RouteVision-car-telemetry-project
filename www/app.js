@@ -31,6 +31,12 @@ async function init() {
     await setStatusBarColor(isDark);
     updateThemeIcon();
 
+    const savedFuelType = (await Preferences.get({ key: "fuelType" })).value || "E10";
+    const fuelIcon = document.getElementById("fuel-icon");
+    if (fuelIcon) fuelIcon.style.backgroundImage = savedFuelType === "B7"
+        ? "url(images/B7-fuel-label.png)"
+        : "url(images/E10-fuel-label.png)";
+
     connectOBD(true);
 }
 init();
@@ -909,40 +915,37 @@ async function updateFuelPrice() {
     const fuelPriceText = document.getElementById("fuel-price");
     if (!fuelPriceText) return;
 
-    let price = null;
-
     try {
-        // Read location if available
         const locationJson = (await Preferences.get({ key: "location" })).value;
         const location = locationJson ? JSON.parse(locationJson) : null;
-
         const lat = location?.latitude ?? null;
         const lng = location?.longitude ?? null;
 
-        // Call worker
-        price = await getLocalE10Price(lat, lng);
+        const fuelType = (await Preferences.get({ key: "fuelType" })).value || "E10";
+
+        const prices = await getFuelPrices(lat, lng);
+
+        // Cache both prices locally
+        if (Number.isFinite(prices.e10)) await Preferences.set({ key: "cachedE10", value: prices.e10.toString() });
+        if (Number.isFinite(prices.b7))  await Preferences.set({ key: "cachedB7",  value: prices.b7.toString()  });
+
+        const price = fuelType === "B7" ? prices.b7 : prices.e10;
 
         if (Number.isFinite(price)) {
             await Preferences.set({ key: "fuelPrice", value: price.toString() });
             fuelPriceText.textContent = price.toFixed(1);
-            console.log("Fuel price updated:", price.toFixed(1));
             return;
         }
-
-        console.warn("Worker returned invalid price, will use fallback");
     } catch (err) {
         console.warn("Fuel price fetch failed, using fallback", err);
     }
 
-    // Only reach here if worker failed or returned invalid value
     const stored = Number((await Preferences.get({ key: "fuelPrice" })).value);
     const fallback = Number.isFinite(stored) ? stored : DEFAULT_FUEL_PRICE;
     fuelPriceText.textContent = fallback.toFixed(1);
-    console.log("Fuel price fallback:", fallback.toFixed(1));
 }
 
-
-async function getLocalE10Price(lat, lng) {
+async function getFuelPrices(lat, lng) {
     const url = new URL("https://fuel-price-proxy.archie-moon04.workers.dev/");
 
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
@@ -952,20 +955,45 @@ async function getLocalE10Price(lat, lng) {
     }
 
     const res = await fetch(url.toString());
-    console.log("Worker response status:", res.status);
-
-    if (!res.ok) {
-        const text = await res.text(); // read body for debug
-        console.warn("Worker returned error body:", text);
-        throw new Error("Worker failed");
-    }
+    if (!res.ok) throw new Error("Worker failed");
 
     const data = await res.json();
 
-    return Number.isFinite(data.avgE10PencePerLitre)
-        ? data.avgE10PencePerLitre
-        : null;
+    return {
+        e10: Number.isFinite(data.avgE10PencePerLitre) ? data.avgE10PencePerLitre : null,
+        b7:  Number.isFinite(data.avgB7PencePerLitre)  ? data.avgB7PencePerLitre  : null,
+    };
 }
+
+const fuelTypeBtn = document.getElementById("fuel-price-box");
+fuelTypeBtn.addEventListener("click", async () => {
+    const currentType = (await Preferences.get({ key: "fuelType" })).value || "E10";
+    const newType = currentType === "E10" ? "B7" : "E10";
+
+    const confirmed = confirm(`Switch fuel type to ${newType}?`);
+    if (!confirmed) return;
+
+    await Preferences.set({ key: "fuelType", value: newType });
+
+    // Update fuel icon
+    const fuelIcon = document.getElementById("fuel-icon");
+    if (fuelIcon) fuelIcon.style.backgroundImage = newType === "B7" 
+        ? "url(images/B7-fuel-label.png)" 
+        : "url(images/E10-fuel-label.png)";
+
+    // Use cached prices instead of hitting the worker again
+    const fuelPriceText = document.getElementById("fuel-price");
+    const cacheKey = newType === "B7" ? "cachedB7" : "cachedE10";
+    const cached = Number((await Preferences.get({ key: cacheKey })).value);
+
+    if (Number.isFinite(cached) && cached > 0) {
+        await Preferences.set({ key: "fuelPrice", value: cached.toString() });
+        fuelPriceText.textContent = cached.toFixed(1);
+    } else {
+        // No cache yet, fall back to full fetch
+        await updateFuelPrice();
+    }
+});
 
 const obdBtn = document.getElementById("obd-connect-btn");
 obdBtn.addEventListener("click", async () => {

@@ -28,6 +28,8 @@
     background-color: var(--bg-panel);
     box-shadow: 0 0px 3px 0 var(--shadow);
 
+    border: none;
+
     position: relative;
     top: 55px;
     left: 20%;
