@@ -1672,7 +1672,7 @@ versionBtn.addEventListener("click", () => {
     if (!confirmed) return;
 });
 
-const editBtn = document.getElementById("edit-profile-btn")
+const editBtn = document.getElementById("edit-mpg-btn")
 editBtn.addEventListener("click", async () => {
     const value = prompt(
         "Please enter a new basline mpg (used when no OBD is connected)\n(Your cars mpg on a ~1hr long drive)\n\nCurrent Baseline: " + (await Preferences.get({ key: "baselineMPG" })).value + "mpg\n\nNote: This should be calibrated in comparison to your cars trip computer over multiple drives for the best results.",
@@ -1744,7 +1744,7 @@ resetBtn.addEventListener("click", async () => {
 });
 
 async function updateProfileButtons() {
-    const carBtn = document.getElementById("edit-profile-btn");
+    const carBtn = document.getElementById("edit-mpg-btn");
     const homeBtn = document.getElementById("set-profile-home-btn");
 
     const hasMpg = !!(await Preferences.get({ key: "baselineMPG" })).value;
