@@ -37,6 +37,20 @@ async function init() {
         ? "url(images/B7-fuel-label.png)"
         : "url(images/E10-fuel-label.png)";
 
+    const fuelType = (await Preferences.get({ key: "fuelType" })).value || "E10";
+    
+    if (fuelType === "B7") {
+        // Diesel adjustments
+        IDLE_LITRES_PER_HOUR = 0.5;
+        OBD_AFR = 14.5;
+        OBD_FUEL_DENSITY = 840;
+    } else {
+        // Petrol defaults
+        IDLE_LITRES_PER_HOUR = 0.8;
+        OBD_AFR = 14.7;
+        OBD_FUEL_DENSITY = 750;
+    }
+
     connectOBD(true);
 }
 init();
@@ -44,9 +58,10 @@ init();
 
 // -------------------- Tunable constants --------------------
 let LITRES_PER_100KM = 5.3; // calibrated to your car's real-world MPG (will be overridden by saved value if set)
-
+let OBD_AFR = 14.7; // Air-Fuel Ratio (14.7:1 for petrol, ~14.5:1 for diesel)
+let OBD_FUEL_DENSITY = 750; // g/L (typical for petrol, ~840 for diesel)
 // Idle consumption
-const IDLE_LITRES_PER_HOUR = 0.8; // realistic range: 0.5–1.0
+let IDLE_LITRES_PER_HOUR = 0.8; // realistic range: 0.5–1.0
 
 // Calibrate MPG output to your car
 const MPG_CALIBRATION = 1;
@@ -483,7 +498,7 @@ function decodeSpeed(response) {
 function mafToLPer100(mafGs, speedKph) {
     if (!speedKph || speedKph < 2) return null;
     // MAF (g/s) → fuel flow using stoichiometric ratio (14.7:1) and petrol density (750 g/L)
-    const fuelFlowLPerS = mafGs / (14.7 * 750);
+    const fuelFlowLPerS = mafGs / (OBD_AFR * OBD_FUEL_DENSITY);
     const fuelFlowLPerH = fuelFlowLPerS * 3600;
     return (fuelFlowLPerH / speedKph) * 100; // L/100km
 }
