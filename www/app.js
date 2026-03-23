@@ -302,10 +302,10 @@ const BLE_SERVICE     = '0000fff0-0000-1000-8000-00805f9b34fb';
 const BLE_NOTIFY_CHAR = '0000fff1-0000-1000-8000-00805f9b34fb';
 const BLE_WRITE_CHAR  = '0000fff2-0000-1000-8000-00805f9b34fb';
 
-
 let bleDeviceId = null;
 let obdConnected = false;
 let responseBuffer = '';
+let useDirectFuelRate = false;
 
 function getBLE() {
     return window.Capacitor?.Plugins?.BluetoothLe ?? null;
@@ -318,7 +318,6 @@ async function connectOBD(silent = false) {
     try {
         await BLE.initialize();
 
-        // Try to reconnect to last known device first
         const savedId = (await Preferences.get({ key: 'obdDeviceId' })).value;
         let deviceId = null;
 
@@ -360,7 +359,6 @@ async function connectOBD(silent = false) {
                 console.log("OBD not available, using GPS model");
                 return;
             }
-            // Called from button — show picker
             const result = await BLE.requestDevice({ services: [BLE_SERVICE] });
             deviceId = result.deviceId;
             console.log("OBD device found:", result.name, deviceId);
@@ -372,10 +370,10 @@ async function connectOBD(silent = false) {
                     bleDeviceId = null;
                     stopOBDPolling();
                     updateOBDStatus(false);
-                    // GPS fuel model automatically takes over since obdConnected is now false
                 }
             });
             await BLE.discoverServices({ deviceId });
+            await BLE.getServices({ deviceId });
             await delay(500);
             await Preferences.set({ key: 'obdDeviceId', value: deviceId });
         }
@@ -383,9 +381,7 @@ async function connectOBD(silent = false) {
         bleDeviceId = deviceId;
         obdConnected = true;
 
-        // Listen for responses
         await delay(300);
-        // Register listener BEFORE starting notifications
         const listenerKey = `notification|${bleDeviceId}|${BLE_SERVICE}|${BLE_NOTIFY_CHAR}`;
         await BLE.addListener(listenerKey, (result) => {
             let chunk;
@@ -399,22 +395,22 @@ async function connectOBD(silent = false) {
             processOBDBuffer();
         });
 
-await BLE.startNotifications({
-    deviceId: bleDeviceId,
-    service: BLE_SERVICE,
-    characteristic: BLE_NOTIFY_CHAR,
-    callback: (result) => {
-        let chunk;
-        if (typeof result.value === 'string') {
-            const bytes = result.value.match(/.{1,2}/g)?.map(h => parseInt(h, 16)) ?? [];
-            chunk = new TextDecoder().decode(new Uint8Array(bytes));
-        } else {
-            chunk = new TextDecoder().decode(new Uint8Array(Object.values(result.value)));
-        }
-        responseBuffer += chunk;
-        processOBDBuffer();
-    }
-});
+        await BLE.startNotifications({
+            deviceId: bleDeviceId,
+            service: BLE_SERVICE,
+            characteristic: BLE_NOTIFY_CHAR,
+            callback: (result) => {
+                let chunk;
+                if (typeof result.value === 'string') {
+                    const bytes = result.value.match(/.{1,2}/g)?.map(h => parseInt(h, 16)) ?? [];
+                    chunk = new TextDecoder().decode(new Uint8Array(bytes));
+                } else {
+                    chunk = new TextDecoder().decode(new Uint8Array(Object.values(result.value)));
+                }
+                responseBuffer += chunk;
+                processOBDBuffer();
+            }
+        });
 
         console.log("Initialising ELM327...");
         await sendOBDAndWait('ATZ', 3000);
@@ -424,6 +420,8 @@ await BLE.startNotifications({
         await sendOBDAndWait('ATH0');
         await sendOBDAndWait('ATSP0');
         console.log("ELM327 init complete");
+
+        await detectFuelRateSupport();
 
         updateOBDStatus(true);
         startOBDPolling();
@@ -435,6 +433,17 @@ await BLE.startNotifications({
         if (!silent) {
             alert("Could not connect to OBD scanner: " + err.message);
         }
+    }
+}
+
+async function detectFuelRateSupport() {
+    const response = await queryPID('5E');
+    if (response && response.startsWith('415E')) {
+        console.log("PID 5E supported — using direct fuel rate");
+        useDirectFuelRate = true;
+    } else {
+        console.log("PID 5E not supported — falling back to MAF");
+        useDirectFuelRate = false;
     }
 }
 
@@ -486,7 +495,6 @@ function delay(ms) {
 
 const pendingResolvers = {};
 let currentPID = null;
-
 let pendingInitResolve = null;
 
 async function sendOBDAndWait(cmd, timeoutMs = 2000) {
@@ -532,7 +540,6 @@ function queryPID(pid) {
         pendingResolvers[pid] = resolve;
         sendOBD('01' + pid);
 
-        // Timeout after 2s
         setTimeout(() => {
             if (pendingResolvers[pid]) {
                 delete pendingResolvers[pid];
@@ -546,8 +553,6 @@ function queryPID(pid) {
 // ---- PID decoders ----
 
 function decodeMAF(response) {
-    // PID 10: MAF air flow rate
-    // Response: 4110AABB → value = (AA*256 + BB) / 100 g/s
     if (!response || response.length < 8) return null;
     const aa = parseInt(response.substring(4, 6), 16);
     const bb = parseInt(response.substring(6, 8), 16);
@@ -556,20 +561,19 @@ function decodeMAF(response) {
 }
 
 function decodeSpeed(response) {
-    // PID 0D: vehicle speed
-    // Response: 410DAA → value = AA km/h
     if (!response || response.length < 6) return null;
     const aa = parseInt(response.substring(4, 6), 16);
     if (isNaN(aa)) return null;
     return aa; // km/h
 }
 
-function mafToLPer100(mafGs, speedKph) {
-    if (!speedKph || speedKph < 2) return null;
-    // MAF (g/s) → fuel flow using stoichiometric ratio (14.7:1) and petrol density (750 g/L)
-    const fuelFlowLPerS = mafGs / (OBD_AFR * OBD_FUEL_DENSITY);
-    const fuelFlowLPerH = fuelFlowLPerS * 3600;
-    return (fuelFlowLPerH / speedKph) * 100; // L/100km
+function decodeFuelRate(response) {
+    // PID 5E: engine fuel rate → (AA*256 + BB) / 20 L/hour
+    if (!response || response.length < 8) return null;
+    const aa = parseInt(response.substring(4, 6), 16);
+    const bb = parseInt(response.substring(6, 8), 16);
+    if (isNaN(aa) || isNaN(bb)) return null;
+    return (aa * 256 + bb) / 20; // L/hour
 }
 
 // ---- Polling loop ----
@@ -586,6 +590,7 @@ function stopOBDPolling() {
     obdPollInterval = null;
     lastOBDTime = null;
     obdPolling = false;
+    useDirectFuelRate = false;
 }
 
 let lastOBDTime = null;
@@ -597,8 +602,24 @@ async function pollOBD() {
     obdPolling = true;
 
     try {
-        const mafRaw = await queryPID('10');
-        const mafGs = decodeMAF(mafRaw);
+        let fuelFlowLPerS = null;
+
+        if (useDirectFuelRate) {
+            const fuelRateRaw = await queryPID('5E');
+            const fuelRateLPerH = decodeFuelRate(fuelRateRaw);
+            if (fuelRateLPerH !== null) {
+                fuelFlowLPerS = fuelRateLPerH / 3600;
+            }
+        }
+
+        // Fall back to MAF if 5E failed or not supported
+        if (fuelFlowLPerS === null) {
+            const mafRaw = await queryPID('10');
+            const mafGs = decodeMAF(mafRaw);
+            if (mafGs !== null) {
+                fuelFlowLPerS = mafGs / (OBD_AFR * OBD_FUEL_DENSITY);
+            }
+        }
 
         const speedRaw = await queryPID('0D');
         const speedKph = decodeSpeed(speedRaw);
@@ -607,19 +628,27 @@ async function pollOBD() {
         const deltaSeconds = lastOBDTime ? (now - lastOBDTime) / 1000 : 0;
         lastOBDTime = now;
 
-        if (deltaSeconds <= 0 || deltaSeconds > 10) return; // ← sanity check for gaps
+        if (deltaSeconds <= 0 || deltaSeconds > 5) return;
 
-        if (mafGs !== null) {
-            const fuelFlowLPerS = mafGs / (OBD_AFR * OBD_FUEL_DENSITY);
-            liveDrive.fuelUsedLitres += fuelFlowLPerS * deltaSeconds;
-            console.log(`MAF: ${mafGs.toFixed(2)}g/s | Fuel: ${liveDrive.fuelUsedLitres.toFixed(3)}L`);
+        if (
+            speedKph === null ||
+            fuelFlowLPerS === null ||
+            fuelFlowLPerS <= 0
+        ) {
+            return;
         }
 
-        if (speedKph !== null) {
+        liveDrive.fuelUsedLitres += fuelFlowLPerS * deltaSeconds;
+
+        // Only update speed if moving (prevents MPG spikes)
+        if (speedKph >= 5) {
             liveDrive.lastSpeedKph = speedKph;
         }
+
+        console.log(`Fuel: ${(fuelFlowLPerS * 3600).toFixed(3)}L/hr | Total: ${liveDrive.fuelUsedLitres.toFixed(3)}L`);
+        
     } finally {
-        obdPolling = false; // ← always releases even if an error occurs
+        obdPolling = false;
     }
 }
 
@@ -635,20 +664,9 @@ function updateOBDStatus(connected) {
     }
 }
 
-// ============================================================
-// Fuel model updates (UPDATED + NEW LOW-LOAD IMPROVEMENTS)
-// ============================================================
-
-// Smooth speed to reduce “phantom acceleration” from GPS noise
-function getSmoothedSpeedKph() {
-    if (!liveDrive || liveDrive.recentSpeeds.length === 0) return 0;
-
-    const n = Math.min(SPEED_SMOOTH_WINDOW, liveDrive.recentSpeeds.length);
-    const slice = liveDrive.recentSpeeds.slice(-n);
-
-    const avg = slice.reduce((a, b) => a + b, 0) / n;
-    return avg;
-}
+/////////////////////////////////////////
+/////////////////////////////////////////
+/////////////////////////////////////////
 
 // NEW: speed standard deviation over a short window (stability detector)
 function getSpeedStdKph(window = 10) {
