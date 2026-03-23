@@ -321,7 +321,7 @@ async function connectOBD(silent = false) {
             try {
                 console.log("Trying to reconnect to saved OBD device...");
                 await BLE.connect({ deviceId: savedId, timeout: 5000 });
-                await BLE.discoverServices({ deviceId: savedId }); // ← add this
+                await BLE.discoverServices({ deviceId: savedId });
                 await delay(500);  
                 deviceId = savedId;
                 console.log("Reconnected to saved device");
@@ -353,7 +353,13 @@ async function connectOBD(silent = false) {
                 }
             });
             await BLE.discoverServices({ deviceId });
-            await delay(500);
+            const services = await BLE.getServices({ deviceId });
+            const summary = services.map(s => 
+                `${s.uuid}: ${s.characteristics?.map(c => c.uuid).join(', ')}`
+            ).join('\n');
+            alert("Services:\n" + summary);
+
+            await delay(2000);
             await Preferences.set({ key: 'obdDeviceId', value: deviceId });
         }
 
@@ -538,7 +544,7 @@ async function pollOBD() {
     if (mafGs !== null) {
         // Override the GPS-based fuel model with real MAF data
         const deltaSeconds = 0.5; // polling interval
-        const fuelFlowLPerS = mafGs / (14.7 * 750);
+        const fuelFlowLPerS = mafGs / (OBD_AFR * OBD_FUEL_DENSITY);
         liveDrive.fuelUsedLitres += fuelFlowLPerS * deltaSeconds;
         console.log(`MAF: ${mafGs.toFixed(2)}g/s | Fuel: ${liveDrive.fuelUsedLitres.toFixed(3)}L`);
     }
@@ -1014,6 +1020,17 @@ fuelTypeBtn.addEventListener("click", async () => {
     if (fuelIcon) fuelIcon.style.backgroundImage = newType === "B7" 
         ? "url(images/B7-fuel-label.png)" 
         : "url(images/E10-fuel-label.png)";
+
+    //update OBD MAF conversion constants
+    if (newType === "B7") {
+        IDLE_LITRES_PER_HOUR = 0.5;
+        OBD_AFR = 14.5;
+        OBD_FUEL_DENSITY = 840;
+    } else {
+        IDLE_LITRES_PER_HOUR = 0.8;
+        OBD_AFR = 14.7;
+        OBD_FUEL_DENSITY = 750;
+    }
 
     // Use cached prices instead of hitting the worker again
     const fuelPriceText = document.getElementById("fuel-price");
