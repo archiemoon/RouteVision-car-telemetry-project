@@ -312,7 +312,6 @@ function getBLE() {
 }
 
 async function connectOBD(silent = false) {
-    lastOBDTime = null;
     const BLE = getBLE();
     if (!BLE) { console.warn("BLE plugin not available"); return; }
 
@@ -422,7 +421,6 @@ await BLE.startNotifications({
 }
 
 async function disconnectOBD() {
-    lastOBDTime = null;
     const BLE = getBLE();
     if (!BLE || !bleDeviceId) return;
 
@@ -568,31 +566,42 @@ function startOBDPolling() {
 function stopOBDPolling() {
     clearInterval(obdPollInterval);
     obdPollInterval = null;
+    lastOBDTime = null;
+    obdPolling = false;
 }
 
 let lastOBDTime = null;
+let obdPolling = false;
+
 async function pollOBD() {
     if (!obdConnected || !liveDrive) return;
+    if (obdPolling) return;
+    obdPolling = true;
 
-    const mafRaw = await queryPID('10');
-    const mafGs = decodeMAF(mafRaw);
+    try {
+        const mafRaw = await queryPID('10');
+        const mafGs = decodeMAF(mafRaw);
 
-    const speedRaw = await queryPID('0D');
-    const speedKph = decodeSpeed(speedRaw);
+        const speedRaw = await queryPID('0D');
+        const speedKph = decodeSpeed(speedRaw);
 
         const now = Date.now();
         const deltaSeconds = lastOBDTime ? (now - lastOBDTime) / 1000 : 0;
         lastOBDTime = now;
 
-    if (deltaSeconds <= 0) return;
+        if (deltaSeconds <= 0 || deltaSeconds > 10) return; // ← sanity check for gaps
 
-    if (mafGs !== null) {
-        const fuelFlowLPerS = mafGs / (OBD_AFR * OBD_FUEL_DENSITY);
-        liveDrive.fuelUsedLitres += fuelFlowLPerS * deltaSeconds;
-    }
+        if (mafGs !== null) {
+            const fuelFlowLPerS = mafGs / (OBD_AFR * OBD_FUEL_DENSITY);
+            liveDrive.fuelUsedLitres += fuelFlowLPerS * deltaSeconds;
+            console.log(`MAF: ${mafGs.toFixed(2)}g/s | Fuel: ${liveDrive.fuelUsedLitres.toFixed(3)}L`);
+        }
 
-    if (speedKph !== null) {
-        liveDrive.lastSpeedKph = speedKph;
+        if (speedKph !== null) {
+            liveDrive.lastSpeedKph = speedKph;
+        }
+    } finally {
+        obdPolling = false; // ← always releases even if an error occurs
     }
 }
 
