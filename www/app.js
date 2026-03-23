@@ -1734,7 +1734,7 @@ async function updateProfileStats() {
 const versionBtn = document.getElementById("release-version-btn")
 versionBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.2.5"
+        "Current Release Version: v1.2.6"
     );
 
     if (!confirmed) return;
