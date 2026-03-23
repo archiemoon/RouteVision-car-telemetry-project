@@ -324,10 +324,29 @@ async function connectOBD(silent = false) {
 
         if (savedId) {
             try {
-                console.log("Trying to reconnect to saved OBD device...");
+                console.log("Scanning for saved OBD device...");
+
+                // Scan briefly to populate the plugin's device registry
+                await new Promise((resolve) => {
+                    BLE.requestLEScan(
+                        { services: [BLE_SERVICE] },
+                        (result) => {
+                            if (result.device.deviceId === savedId) {
+                                BLE.stopLEScan();
+                                resolve();
+                            }
+                        }
+                    );
+                    // Stop scan after 5 seconds regardless
+                    setTimeout(() => {
+                        BLE.stopLEScan();
+                        resolve();
+                    }, 3000);
+                });
+
                 await BLE.connect({ deviceId: savedId, timeout: 5000 });
                 await BLE.discoverServices({ deviceId: savedId });
-                await delay(500);  
+                await delay(500);
                 deviceId = savedId;
                 console.log("Reconnected to saved device");
             } catch (e) {
@@ -357,8 +376,7 @@ async function connectOBD(silent = false) {
                 }
             });
             await BLE.discoverServices({ deviceId });
-            const services = await BLE.getServices({ deviceId });
-            await delay(2000);
+            await delay(500);
             await Preferences.set({ key: 'obdDeviceId', value: deviceId });
         }
 
@@ -366,7 +384,7 @@ async function connectOBD(silent = false) {
         obdConnected = true;
 
         // Listen for responses
-        await delay(1000);
+        await delay(300);
         // Register listener BEFORE starting notifications
         const listenerKey = `notification|${bleDeviceId}|${BLE_SERVICE}|${BLE_NOTIFY_CHAR}`;
         await BLE.addListener(listenerKey, (result) => {
@@ -1734,7 +1752,7 @@ async function updateProfileStats() {
 const versionBtn = document.getElementById("release-version-btn")
 versionBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.2.6"
+        "Current Release Version: v1.2.7"
     );
 
     if (!confirmed) return;
