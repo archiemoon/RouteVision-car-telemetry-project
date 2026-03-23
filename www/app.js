@@ -15,7 +15,7 @@ async function setStatusBarColor(isDark) {
 renderHomePage()
 
 ////////////////////////
-// Data Tracking Logic
+// Initialization
 ////////////////////////
 
 let liveDrive = null;
@@ -54,6 +54,10 @@ async function init() {
     connectOBD(true);
 }
 init();
+
+////////////////////////
+// Data Tracking Logic
+////////////////////////
 
 
 // -------------------- Tunable constants --------------------
@@ -105,7 +109,7 @@ function startDrive() {
     };
 
     startActiveTimer();
-    connectOBD(true);
+    if (!obdConnected) connectOBD(true);
 }
 
 function startActiveTimer() {
@@ -294,9 +298,10 @@ function handlePositionUpdate(position) {
 // OBD-II Bluetooth (Veepeak BLE)
 // ============================================================
 
-const BLE_SERVICE     = 'fff0';
-const BLE_NOTIFY_CHAR = 'fff1';
-const BLE_WRITE_CHAR  = 'fff2';
+const BLE_SERVICE     = '0000fff0-0000-1000-8000-00805f9b34fb';
+const BLE_NOTIFY_CHAR = '0000fff1-0000-1000-8000-00805f9b34fb';
+const BLE_WRITE_CHAR  = '0000fff2-0000-1000-8000-00805f9b34fb';
+
 
 let bleDeviceId = null;
 let obdConnected = false;
@@ -307,6 +312,7 @@ function getBLE() {
 }
 
 async function connectOBD(silent = false) {
+    lastOBDTime = null;
     const BLE = getBLE();
     if (!BLE) { console.warn("BLE plugin not available"); return; }
 
@@ -333,7 +339,6 @@ async function connectOBD(silent = false) {
 
         if (!deviceId) {
             if (silent) {
-                // Called from startDrive — don't show picker, just give up quietly
                 console.log("OBD not available, using GPS model");
                 return;
             }
@@ -354,11 +359,6 @@ async function connectOBD(silent = false) {
             });
             await BLE.discoverServices({ deviceId });
             const services = await BLE.getServices({ deviceId });
-            const summary = services.map(s => 
-                `${s.uuid}: ${s.characteristics?.map(c => c.uuid).join(', ')}`
-            ).join('\n');
-            alert("Services:\n" + summary);
-
             await delay(2000);
             await Preferences.set({ key: 'obdDeviceId', value: deviceId });
         }
@@ -368,27 +368,45 @@ async function connectOBD(silent = false) {
 
         // Listen for responses
         await delay(1000);
-        await BLE.startNotifications({
-            deviceId: bleDeviceId,
-            service: BLE_SERVICE,
-            characteristic: BLE_NOTIFY_CHAR,
-            callback: (result) => {
-                const chunk = new TextDecoder().decode(
-                    new Uint8Array(Object.values(result.value))
-                );
-                responseBuffer += chunk;
-                processOBDBuffer();
+        // Register listener BEFORE starting notifications
+        const listenerKey = `notification|${bleDeviceId}|${BLE_SERVICE}|${BLE_NOTIFY_CHAR}`;
+        await BLE.addListener(listenerKey, (result) => {
+            let chunk;
+            if (typeof result.value === 'string') {
+                const bytes = result.value.match(/.{1,2}/g)?.map(h => parseInt(h, 16)) ?? [];
+                chunk = new TextDecoder().decode(new Uint8Array(bytes));
+            } else {
+                chunk = new TextDecoder().decode(new Uint8Array(Object.values(result.value)));
             }
+            responseBuffer += chunk;
+            processOBDBuffer();
         });
 
-        // Initialise ELM327
-        await sendOBD('ATZ');
-        await delay(1000);
-        await sendOBD('ATE0');
-        await sendOBD('ATL0');
-        await sendOBD('ATS0');
-        await sendOBD('ATH0');
-        await sendOBD('ATSP0');
+await BLE.startNotifications({
+    deviceId: bleDeviceId,
+    service: BLE_SERVICE,
+    characteristic: BLE_NOTIFY_CHAR,
+    callback: (result) => {
+        let chunk;
+        if (typeof result.value === 'string') {
+            const bytes = result.value.match(/.{1,2}/g)?.map(h => parseInt(h, 16)) ?? [];
+            chunk = new TextDecoder().decode(new Uint8Array(bytes));
+        } else {
+            chunk = new TextDecoder().decode(new Uint8Array(Object.values(result.value)));
+        }
+        responseBuffer += chunk;
+        processOBDBuffer();
+    }
+});
+
+        console.log("Initialising ELM327...");
+        await sendOBDAndWait('ATZ', 3000);
+        await sendOBDAndWait('ATE0');
+        await sendOBDAndWait('ATL0');
+        await sendOBDAndWait('ATS0');
+        await sendOBDAndWait('ATH0');
+        await sendOBDAndWait('ATSP0');
+        console.log("ELM327 init complete");
 
         updateOBDStatus(true);
         startOBDPolling();
@@ -404,6 +422,7 @@ async function connectOBD(silent = false) {
 }
 
 async function disconnectOBD() {
+    lastOBDTime = null;
     const BLE = getBLE();
     if (!BLE || !bleDeviceId) return;
 
@@ -431,15 +450,15 @@ function sendOBD(cmd) {
     if (!BLE || !bleDeviceId) return Promise.resolve();
 
     const encoded = new TextEncoder().encode(cmd + '\r');
-    const value = Array.from(encoded).reduce((obj, val, i) => {
-        obj[i] = val; return obj;
-    }, {});
+    const hex = Array.from(encoded)
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
 
-    return BLE.write({
+    return BLE.writeWithoutResponse({
         deviceId: bleDeviceId,
         service: BLE_SERVICE,
         characteristic: BLE_WRITE_CHAR,
-        value: { buffer: encoded.buffer }
+        value: hex
     }).catch(err => console.warn("OBD write error:", err));
 }
 
@@ -452,14 +471,35 @@ function delay(ms) {
 const pendingResolvers = {};
 let currentPID = null;
 
+let pendingInitResolve = null;
+
+async function sendOBDAndWait(cmd, timeoutMs = 2000) {
+    return new Promise((resolve) => {
+        const cleanup = setTimeout(() => resolve(null), timeoutMs);
+        pendingInitResolve = (response) => {
+            clearTimeout(cleanup);
+            resolve(response);
+        };
+        sendOBD(cmd);
+    });
+}
+
 function processOBDBuffer() {
     if (!responseBuffer.includes('>')) return;
 
     const parts = responseBuffer.split('>');
-    responseBuffer = parts.pop(); // keep incomplete part
+    responseBuffer = parts.pop();
 
     for (const raw of parts) {
-        const cleaned = raw.trim().replace(/\s/g, '');
+        const cleaned = raw.trim().replace(/\s/g, '').replace(/SEARCHING\.\.\./g, '');
+
+        if (pendingInitResolve) {
+            const resolve = pendingInitResolve;
+            pendingInitResolve = null;
+            resolve(cleaned);
+            continue;
+        }
+
         if (!cleaned || cleaned === 'OK' || cleaned.startsWith('AT')) continue;
 
         if (currentPID && pendingResolvers[currentPID]) {
@@ -530,23 +570,25 @@ function stopOBDPolling() {
     obdPollInterval = null;
 }
 
+let lastOBDTime = null;
 async function pollOBD() {
     if (!obdConnected || !liveDrive) return;
 
-    // Poll MAF
     const mafRaw = await queryPID('10');
     const mafGs = decodeMAF(mafRaw);
 
-    // Poll Speed
     const speedRaw = await queryPID('0D');
     const speedKph = decodeSpeed(speedRaw);
 
+        const now = Date.now();
+        const deltaSeconds = lastOBDTime ? (now - lastOBDTime) / 1000 : 0;
+        lastOBDTime = now;
+
+    if (deltaSeconds <= 0) return;
+
     if (mafGs !== null) {
-        // Override the GPS-based fuel model with real MAF data
-        const deltaSeconds = 0.5; // polling interval
         const fuelFlowLPerS = mafGs / (OBD_AFR * OBD_FUEL_DENSITY);
         liveDrive.fuelUsedLitres += fuelFlowLPerS * deltaSeconds;
-        console.log(`MAF: ${mafGs.toFixed(2)}g/s | Fuel: ${liveDrive.fuelUsedLitres.toFixed(3)}L`);
     }
 
     if (speedKph !== null) {
@@ -1683,7 +1725,7 @@ async function updateProfileStats() {
 const versionBtn = document.getElementById("release-version-btn")
 versionBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.2.4"
+        "Current Release Version: v1.2.5"
     );
 
     if (!confirmed) return;
