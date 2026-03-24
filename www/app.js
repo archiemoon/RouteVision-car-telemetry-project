@@ -254,7 +254,9 @@ function handlePositionUpdate(position) {
     if (speedMps === null) return;
 
     const speedKph = speedMps * 3.6;
-    liveDrive.lastSpeedKph = speedKph;
+    if (!obdConnected) {
+        liveDrive.lastSpeedKph = speedKph;
+    }   
 
     const alt = position.coords.altitude;
     if (alt !== null && Number.isFinite(alt)) {
@@ -343,7 +345,17 @@ async function connectOBD(silent = false) {
                     }, 3000);
                 });
 
-                await BLE.connect({ deviceId: savedId, timeout: 5000 });
+                await BLE.connect({ 
+                    deviceId: savedId, 
+                    timeout: 5000,
+                    onDisconnected: () => {
+                        console.warn("OBD disconnected unexpectedly");
+                        obdConnected = false;
+                        bleDeviceId = null;
+                        stopOBDPolling();
+                        updateOBDStatus(false);
+                    }
+                });
                 await BLE.discoverServices({ deviceId: savedId });
                 await delay(500);
                 deviceId = savedId;
@@ -373,7 +385,6 @@ async function connectOBD(silent = false) {
                 }
             });
             await BLE.discoverServices({ deviceId });
-            await BLE.getServices({ deviceId });
             await delay(500);
             await Preferences.set({ key: 'obdDeviceId', value: deviceId });
         }
@@ -630,20 +641,13 @@ async function pollOBD() {
 
         if (deltaSeconds <= 0 || deltaSeconds > 5) return;
 
-        if (
-            speedKph === null ||
-            fuelFlowLPerS === null ||
-            fuelFlowLPerS <= 0
-        ) {
-            return;
+        if (fuelFlowLPerS === null || fuelFlowLPerS <= 0) return;
+
+        if (speedKph !== null && speedKph >= 5) {
+            liveDrive.lastSpeedKph = speedKph;
         }
 
         liveDrive.fuelUsedLitres += fuelFlowLPerS * deltaSeconds;
-
-        // Only update speed if moving (prevents MPG spikes)
-        if (speedKph >= 5) {
-            liveDrive.lastSpeedKph = speedKph;
-        }
 
         console.log(`Fuel: ${(fuelFlowLPerS * 3600).toFixed(3)}L/hr | Total: ${liveDrive.fuelUsedLitres.toFixed(3)}L`);
         
@@ -912,11 +916,11 @@ function updateLiveFromSpeed(speedKphRaw, deltaSeconds) {
         (deltaDistanceKm / 100) * effectiveLPer100;
 }
 
-
-// Kept for any other parts of your app that might still call it
-function getRecentAverageSpeed() {
+function getSmoothedSpeedKph() {
     if (!liveDrive || liveDrive.recentSpeeds.length === 0) return 0;
-    return liveDrive.recentSpeeds.reduce((a, b) => a + b, 0) / liveDrive.recentSpeeds.length;
+    const n = Math.min(SPEED_SMOOTH_WINDOW, liveDrive.recentSpeeds.length);
+    const slice = liveDrive.recentSpeeds.slice(-n);
+    return slice.reduce((a, b) => a + b, 0) / n;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
