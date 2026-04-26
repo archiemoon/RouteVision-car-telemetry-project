@@ -393,18 +393,6 @@ async function connectOBD(silent = false) {
         obdConnected = true;
 
         await delay(300);
-        const listenerKey = `notification|${bleDeviceId}|${BLE_SERVICE}|${BLE_NOTIFY_CHAR}`;
-        await BLE.addListener(listenerKey, (result) => {
-            let chunk;
-            if (typeof result.value === 'string') {
-                const bytes = result.value.match(/.{1,2}/g)?.map(h => parseInt(h, 16)) ?? [];
-                chunk = new TextDecoder().decode(new Uint8Array(bytes));
-            } else {
-                chunk = new TextDecoder().decode(new Uint8Array(Object.values(result.value)));
-            }
-            responseBuffer += chunk;
-            processOBDBuffer();
-        });
 
         await BLE.startNotifications({
             deviceId: bleDeviceId,
@@ -538,21 +526,24 @@ function processOBDBuffer() {
         if (!cleaned || cleaned === 'OK' || cleaned.startsWith('AT')) continue;
 
         if (currentPID && pendingResolvers[currentPID]) {
-            pendingResolvers[currentPID](cleaned);
+            pendingResolvers[currentPID].resolve(cleaned);
             delete pendingResolvers[currentPID];
             currentPID = null;
         }
     }
 }
 
+let querySeq = 0;
+
 function queryPID(pid) {
     return new Promise((resolve) => {
+        const seq = ++querySeq;
         currentPID = pid;
-        pendingResolvers[pid] = resolve;
+        pendingResolvers[pid] = { resolve, seq };
         sendOBD('01' + pid);
 
         setTimeout(() => {
-            if (pendingResolvers[pid]) {
+            if (pendingResolvers[pid]?.seq === seq) {
                 delete pendingResolvers[pid];
                 currentPID = null;
                 resolve(null);
@@ -618,44 +609,37 @@ async function pollOBD() {
         if (useDirectFuelRate) {
             const fuelRateRaw = await queryPID('5E');
             const fuelRateLPerH = decodeFuelRate(fuelRateRaw);
-            if (fuelRateLPerH !== null) {
-                fuelFlowLPerS = fuelRateLPerH / 3600;
-            }
+            if (fuelRateLPerH !== null) fuelFlowLPerS = fuelRateLPerH / 3600;
         }
 
-        // Fall back to MAF if 5E failed or not supported
         if (fuelFlowLPerS === null) {
             const mafRaw = await queryPID('10');
             const mafGs = decodeMAF(mafRaw);
-            if (mafGs !== null) {
-                fuelFlowLPerS = mafGs / (OBD_AFR * OBD_FUEL_DENSITY);
-            }
+            if (mafGs !== null) fuelFlowLPerS = mafGs / (OBD_AFR * OBD_FUEL_DENSITY);
         }
 
         const speedRaw = await queryPID('0D');
         const speedKph = decodeSpeed(speedRaw);
 
-        const now = Date.now();
-        const deltaSeconds = lastOBDTime ? (now - lastOBDTime) / 1000 : 0;
-        lastOBDTime = now;
+        // ✅ Only advance the clock when we actually have a fuel reading
+        if (fuelFlowLPerS !== null && fuelFlowLPerS > 0) {
+            const now = Date.now();
+            const deltaSeconds = lastOBDTime ? (now - lastOBDTime) / 1000 : 0;
+            lastOBDTime = now;
 
-        if (deltaSeconds <= 0 || deltaSeconds > 5) return;
-
-        if (fuelFlowLPerS === null || fuelFlowLPerS <= 0) return;
-
-        if (speedKph !== null && speedKph >= 5) {
-            liveDrive.lastSpeedKph = speedKph;
+            if (deltaSeconds > 0 && deltaSeconds <= 5) {
+                if (speedKph !== null && speedKph >= 5) {
+                    liveDrive.lastSpeedKph = speedKph;
+                }
+                liveDrive.fuelUsedLitres += fuelFlowLPerS * deltaSeconds;
+                console.log(`Fuel: ${(fuelFlowLPerS * 3600).toFixed(3)}L/hr | Total: ${liveDrive.fuelUsedLitres.toFixed(3)}L`);
+            }
         }
 
-        liveDrive.fuelUsedLitres += fuelFlowLPerS * deltaSeconds;
-
-        console.log(`Fuel: ${(fuelFlowLPerS * 3600).toFixed(3)}L/hr | Total: ${liveDrive.fuelUsedLitres.toFixed(3)}L`);
-        
     } finally {
         obdPolling = false;
     }
 }
-
 // ---- UI status ----
 
 function updateOBDStatus(connected) {
