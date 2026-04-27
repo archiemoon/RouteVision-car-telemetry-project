@@ -394,22 +394,27 @@ async function connectOBD(silent = false) {
 
         await delay(300);
 
+        
         await BLE.startNotifications({
             deviceId: bleDeviceId,
             service: BLE_SERVICE,
             characteristic: BLE_NOTIFY_CHAR,
-            callback: (result) => {
-                let chunk;
-                if (typeof result.value === 'string') {
-                    const bytes = result.value.match(/.{1,2}/g)?.map(h => parseInt(h, 16)) ?? [];
-                    chunk = new TextDecoder().decode(new Uint8Array(bytes));
-                } else {
-                    chunk = new TextDecoder().decode(new Uint8Array(Object.values(result.value)));
-                }
-                responseBuffer += chunk;
-                processOBDBuffer();
-            }
         });
+
+        const listenerKey = `notification|${bleDeviceId}|${BLE_SERVICE}|${BLE_NOTIFY_CHAR}`;
+        await BLE.addListener(listenerKey, (result) => {
+        let chunk;
+        if (typeof result.value === 'string') {
+            const bytes = result.value.match(/.{1,2}/g)?.map(h => parseInt(h, 16)) ?? [];
+            chunk = new TextDecoder().decode(new Uint8Array(bytes));
+        } else {
+            chunk = new TextDecoder().decode(new Uint8Array(Object.values(result.value)));
+        }
+        console.log("RAW BLE chunk:", JSON.stringify(chunk));
+        responseBuffer += chunk;
+        processOBDBuffer();
+        });
+
 
         console.log("Initialising ELM327...");
         await sendOBDAndWait('ATZ', 3000);
@@ -614,7 +619,9 @@ async function pollOBD() {
 
         if (fuelFlowLPerS === null) {
             const mafRaw = await queryPID('10');
+            console.log("MAF raw response:", mafRaw);
             const mafGs = decodeMAF(mafRaw);
+            console.log("MAF decoded:", mafGs); 
             if (mafGs !== null) fuelFlowLPerS = mafGs / (OBD_AFR * OBD_FUEL_DENSITY);
         }
 
