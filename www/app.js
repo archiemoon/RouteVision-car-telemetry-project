@@ -1415,7 +1415,7 @@ async function renderAllTrips() {
     const drives = JSON.parse((await Preferences.get({ key: "drives" })).value || "[]");
     if (drives.length === 0) return;
 
-    const count = drives.length;
+    const count = Math.min(drives.length, 100);
 
     for (let i = 0; i < count; i++) {
         const drive = drives[drives.length - 1 - i];
@@ -1801,7 +1801,7 @@ async function updateProfileStats() {
 const versionBtn = document.getElementById("release-version-btn")
 versionBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.3.0"
+        "Current Release Version: v1.3.1"
     );
 
     if (!confirmed) return;
