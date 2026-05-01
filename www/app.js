@@ -14,6 +14,11 @@ async function setStatusBarColor(isDark) {
 
 renderHomePage()
 
+const appState = { 
+    mode: "idle",
+    paused: false
+};
+
 ////////////////////////
 // Initialization
 ////////////////////////
@@ -36,10 +41,8 @@ async function init() {
     if (fuelIcon) fuelIcon.style.backgroundImage = savedFuelType === "B7"
         ? "url(images/B7-fuel-label.png)"
         : "url(images/E10-fuel-label.png)";
-
-    const fuelType = (await Preferences.get({ key: "fuelType" })).value || "E10";
     
-    if (fuelType === "B7") {
+    if (savedFuelType === "B7") {
         // Diesel adjustments
         IDLE_LITRES_PER_HOUR = 0.5;
         OBD_AFR = 14.5;
@@ -108,6 +111,7 @@ function startDrive() {
         fuelUsedLitres: 0
     };
 
+    lastOBDTime = now;
     startActiveTimer();
     if (!obdConnected) connectOBD(true);
 }
@@ -254,9 +258,7 @@ function handlePositionUpdate(position) {
     if (speedMps === null) return;
 
     const speedKph = speedMps * 3.6;
-    if (!obdConnected) {
-        liveDrive.lastSpeedKph = speedKph;
-    }   
+    liveDrive.lastSpeedKph = speedKph;
 
     const alt = position.coords.altitude;
     if (alt !== null && Number.isFinite(alt)) {
@@ -287,6 +289,9 @@ function handlePositionUpdate(position) {
     const dbgFuel = document.getElementById("dbg-fuel");
     const dbgAvg = document.getElementById("dbg-avg-speed");
     const dbgMpg = document.getElementById("dbg-mpg");
+    const dbgDropouts = document.getElementById("dbg-dropouts");
+    const dbgFuelCut = document.getElementById("dbg-fuelcut");
+    const dbgThrottle = document.getElementById("dbg-throttle");
 
     if (dbgTime) dbgTime.textContent = liveDrive.activeSeconds.toFixed(1);
     if (dbgSpeed) dbgSpeed.textContent = (speedMps * 2.23694).toFixed(1);
@@ -294,6 +299,9 @@ function handlePositionUpdate(position) {
     if (dbgFuel) dbgFuel.textContent = liveDrive.fuelUsedLitres.toFixed(3);
     if (dbgAvg) dbgAvg.textContent = (getAverageSpeed() * 0.621371).toFixed(1);
     if (dbgMpg) dbgMpg.textContent = calculateMPG(liveDrive.distanceKm, liveDrive.fuelUsedLitres).toFixed(1);
+    if (dbgDropouts) dbgDropouts.textContent = obdDropoutCount;
+    if (dbgFuelCut) dbgFuelCut.textContent = fuelCutActive ? "YES" : "NO";
+    if (dbgThrottle) dbgThrottle.textContent = lastThrottlePct !== null ? lastThrottlePct.toFixed(1) + "%" : "—";
 }
 
 // ============================================================
@@ -338,7 +346,7 @@ async function connectOBD(silent = false) {
                             }
                         }
                     );
-                    // Stop scan after 5 seconds regardless
+                    // Stop scan after 3 seconds regardless
                     setTimeout(() => {
                         BLE.stopLEScan();
                         resolve();
@@ -410,7 +418,6 @@ async function connectOBD(silent = false) {
         } else {
             chunk = new TextDecoder().decode(new Uint8Array(Object.values(result.value)));
         }
-        console.log("RAW BLE chunk:", JSON.stringify(chunk));
         responseBuffer += chunk;
         processOBDBuffer();
         });
@@ -589,19 +596,27 @@ let obdPollInterval = null;
 
 function startOBDPolling() {
     if (obdPollInterval) return;
-    obdPollInterval = setInterval(pollOBD, 500);
+    obdPollInterval = setInterval(pollOBD, 1000);
 }
 
 function stopOBDPolling() {
     clearInterval(obdPollInterval);
     obdPollInterval = null;
     lastOBDTime = null;
+    lastKnownFuelFlowLPerS = null;
+    lastThrottlePct = null;
+    fuelCutActive = false;
+    obdDropoutCount = 0;
     obdPolling = false;
     useDirectFuelRate = false;
 }
 
 let lastOBDTime = null;
 let obdPolling = false;
+let obdDropoutCount = 0;
+let lastThrottlePct = null;
+let fuelCutActive = false;
+let lastKnownFuelFlowLPerS = null;
 
 async function pollOBD() {
     if (!obdConnected || !liveDrive) return;
@@ -619,27 +634,39 @@ async function pollOBD() {
 
         if (fuelFlowLPerS === null) {
             const mafRaw = await queryPID('10');
-            console.log("MAF raw response:", mafRaw);
             const mafGs = decodeMAF(mafRaw);
-            console.log("MAF decoded:", mafGs); 
-            if (mafGs !== null) fuelFlowLPerS = mafGs / (OBD_AFR * OBD_FUEL_DENSITY);
+            if (mafGs !== null){
+                fuelFlowLPerS = mafGs / (OBD_AFR * OBD_FUEL_DENSITY);
+                lastKnownFuelFlowLPerS = fuelFlowLPerS;
+            }
         }
 
-        const speedRaw = await queryPID('0D');
-        const speedKph = decodeSpeed(speedRaw);
+        if (fuelFlowLPerS === null && lastKnownFuelFlowLPerS !== null) {
+            fuelFlowLPerS = lastKnownFuelFlowLPerS;
+            console.log("MAF unavailable, using last known value");
+        }
 
-        // ✅ Only advance the clock when we actually have a fuel reading
-        if (fuelFlowLPerS !== null && fuelFlowLPerS > 0) {
+        const throttleRaw = await queryPID('11');
+        const throttlePct = throttleRaw ? parseInt(throttleRaw.substring(4, 6), 16) / 2.55 : null;
+        lastThrottlePct = throttlePct;
+        if (throttlePct !== null && throttlePct < 2 && liveDrive.lastSpeedKph > 20) {
+            fuelFlowLPerS = 0;
+            fuelCutActive = true;
+            console.log("Fuel cut detected — zeroing fuel flow");
+        } else {
+            fuelCutActive = false;
+        }
+
+        if (fuelFlowLPerS !== null) {
             const now = Date.now();
             const deltaSeconds = lastOBDTime ? (now - lastOBDTime) / 1000 : 0;
             lastOBDTime = now;
 
-            if (deltaSeconds > 0 && deltaSeconds <= 5) {
-                if (speedKph !== null && speedKph >= 5) {
-                    liveDrive.lastSpeedKph = speedKph;
-                }
+            if (deltaSeconds > 0 && deltaSeconds <= 12) {
                 liveDrive.fuelUsedLitres += fuelFlowLPerS * deltaSeconds;
-                console.log(`Fuel: ${(fuelFlowLPerS * 3600).toFixed(3)}L/hr | Total: ${liveDrive.fuelUsedLitres.toFixed(3)}L`);
+            } else if (deltaSeconds > 12) {
+                obdDropoutCount++;
+                console.warn(`Poll gap too large: ${deltaSeconds.toFixed(1)}s — fuel dropped`);
             }
         }
 
@@ -719,7 +746,6 @@ function updateLiveFromSpeed(speedKphRaw, deltaSeconds) {
     const prevDistance = liveDrive.distanceKm;
 
     // Use smoothed speed for detection logic
-    const speedKph = speedKphRaw;
     const smoothSpeedKph = getSmoothedSpeedKph();
 
     // ---- ACCELERATION (smoothed) ----
@@ -731,8 +757,8 @@ function updateLiveFromSpeed(speedKphRaw, deltaSeconds) {
     liveDrive.prevSmoothSpeedKph = smoothSpeedKph;
 
     // ---- DISTANCE ----
-    if (speedKph >= 2) {
-        updateDistance(speedKph, deltaSeconds);
+    if (speedKphRaw >= 2) {
+        updateDistance(speedKphRaw, deltaSeconds);
     }
 
     if (obdConnected) return;
@@ -921,11 +947,6 @@ function getSmoothedSpeedKph() {
 ////////////////////////
 // Start/Stop/Pause button logic
 ////////////////////////
-
-const appState = { 
-    mode: "idle",
-    paused: false
-};
 
 function enterDrivingMode() {
     appState.mode = "driving";
@@ -1146,7 +1167,12 @@ async function renderRecentTrips() {
         document.getElementById("recent-trips-overview-content");
     recentTripsPanel.innerHTML = "";
 
-    const drives = JSON.parse((await Preferences.get({ key: "drives" })).value || "[]");
+    let drives = [];
+    try {
+        drives = JSON.parse((await Preferences.get({ key: "drives" })).value || "[]");
+    } catch {
+        drives = [];
+    }
     if (drives.length === 0) return;
 
     // How many trips to show (max 3)
@@ -1182,7 +1208,12 @@ async function renderRecentTrips() {
 }
 
 async function formatDuration(i) {
-    const drives = JSON.parse((await Preferences.get({ key: "drives" })).value || "[]");
+    let drives = [];
+    try {
+        drives = JSON.parse((await Preferences.get({ key: "drives" })).value || "[]");
+    } catch {
+        drives = [];
+    }
     if (drives.length === 0) return;
 
     const drive = drives[drives.length - 1 - i];
@@ -1205,7 +1236,12 @@ async function formatDuration(i) {
 }
 
 async function formatTime(i) {
-    const drives = JSON.parse((await Preferences.get({ key: "drives" })).value || "[]");
+    let drives = [];
+    try {
+        drives = JSON.parse((await Preferences.get({ key: "drives" })).value || "[]");
+    } catch {
+        drives = [];
+    }
     if (drives.length === 0) return;
 
     const drive = drives[drives.length - 1 - i];
@@ -1765,7 +1801,7 @@ async function updateProfileStats() {
 const versionBtn = document.getElementById("release-version-btn")
 versionBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.2.7"
+        "Current Release Version: v1.3.0"
     );
 
     if (!confirmed) return;
@@ -1789,6 +1825,7 @@ editBtn.addEventListener("click", async () => {
 
     // Save the new baseline MPG to localStorage
     Preferences.set({ key: "baselineMPG", value: number.toString() });
+    LITRES_PER_100KM = 282.481 / number;
     await refreshPages();
 });
 
