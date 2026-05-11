@@ -649,7 +649,7 @@ async function pollOBD() {
         const throttleRaw = await queryPID('11');
         const throttlePct = throttleRaw ? parseInt(throttleRaw.substring(4, 6), 16) / 2.55 : null;
         lastThrottlePct = throttlePct;
-        if (throttlePct !== null && throttlePct < 2 && liveDrive.lastSpeedKph > 20) {
+        if (throttlePct !== null && throttlePct <= 15 && liveDrive.lastSpeedKph > 30) {
             fuelFlowLPerS = 0;
             fuelCutActive = true;
             console.log("Fuel cut detected — zeroing fuel flow");
