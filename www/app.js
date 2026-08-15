@@ -50,7 +50,7 @@ async function init() {
     } else {
         // Petrol defaults
         IDLE_LITRES_PER_HOUR = 0.8;
-        OBD_AFR = 14.7;
+        OBD_AFR = 14.1;
         OBD_FUEL_DENSITY = 750;
     }
 
@@ -65,7 +65,7 @@ init();
 
 // -------------------- Tunable constants --------------------
 let LITRES_PER_100KM = 5.3; // calibrated to your car's real-world MPG (will be overridden by saved value if set)
-let OBD_AFR = 14.7; // Air-Fuel Ratio (14.7:1 for petrol, ~14.5:1 for diesel)
+let OBD_AFR = 14.1; // Air-Fuel Ratio (14.7:1 for petrol, ~14.5:1 for diesel)
 let OBD_FUEL_DENSITY = 750; // g/L (typical for petrol, ~840 for diesel)
 // Idle consumption
 let IDLE_LITRES_PER_HOUR = 0.8; // realistic range: 0.5–1.0
@@ -1051,6 +1051,235 @@ profileBtn.addEventListener("click", () => {
     setActiveNav("profile-btn");
 });
 
+const editProfileBtn = document.getElementById("edit-profile-btn");
+const profileEditPanel = document.getElementById("profile-edit-panel");
+
+editProfileBtn.addEventListener("click", async () => {
+    loadProfilePhoto();
+    const cell = document.createElement("div");
+        cell.style.position = "fixed";
+        cell.style.height = "430px";
+        cell.style.width = "310px";
+        cell.style.borderRadius = "30px";
+        cell.style.backgroundColor = "var(--bg-panel)";
+        cell.style.top = "46%";
+        cell.style.left = "50%";
+        cell.style.transform = "translate(-50%, -50%)";
+        cell.style.zIndex = "8";
+
+    const cellProfileImage = document.createElement("div");
+        cellProfileImage.id = "profile-edit-image";
+        cellProfileImage.style.position = "fixed";
+        cellProfileImage.style.height = "100px";
+        cellProfileImage.style.width = "100px";
+        cellProfileImage.style.borderRadius = "50%";
+        cellProfileImage.style.border = "2px solid rgb(249, 248, 248)";
+        cellProfileImage.style.top = "17%";
+        cellProfileImage.style.left = "50%";
+        cellProfileImage.style.transform = "translate(-50%, -50%)";
+        cellProfileImage.style.backgroundImage = `url("${(await Preferences.get({ key: "profileImage" })).value}")`;
+        cellProfileImage.style.backgroundSize = "cover";
+        cellProfileImage.style.backgroundPosition = "center";
+        cellProfileImage.style.zIndex = "9";
+
+    const cellProfileImageBtn = document.createElement("button");
+        cellProfileImageBtn.style.position = "fixed";
+        cellProfileImageBtn.className = "fa-solid fa-arrow-rotate-right";
+        cellProfileImageBtn.style.fontSize = "16px";
+        cellProfileImageBtn.style.height = "30px";
+        cellProfileImageBtn.style.width = "30px";
+        cellProfileImageBtn.style.borderRadius = "50px";
+        cellProfileImageBtn.style.border = "2px solid rgb(249, 248, 248)";
+        cellProfileImageBtn.style.backgroundColor = "var(--bg-panel)";
+        cellProfileImageBtn.style.color = "var(--btn-icon)";
+        cellProfileImageBtn.style.top = "28%";
+        cellProfileImageBtn.style.left = "50%";
+        cellProfileImageBtn.style.boxShadow = "0 0 15px 0 var(--shadow)";
+        cellProfileImageBtn.style.transform = "translate(-50%, -50%)";
+        cellProfileImageBtn.style.zIndex = "10";
+
+        cellProfileImageBtn.onclick = async () => {
+            cycleProfilePhoto();
+        };
+
+    const cellUsernameInput = document.createElement("input"); 
+        cellUsernameInput.type = "text";
+        cellUsernameInput.id = "profile-username-input";
+        cellUsernameInput.value = 
+            (await Preferences.get({ key: "username" })).value;
+        cellUsernameInput.style.position = "absolute";
+        cellUsernameInput.style.top = "40%";
+        cellUsernameInput.style.left = "50%";
+        cellUsernameInput.style.transform = "translate(-50%, -50%)";
+        cellUsernameInput.style.width = "80%";
+        cellUsernameInput.style.height = "40px";
+        cellUsernameInput.style.borderRadius = "10px";
+        cellUsernameInput.style.backgroundColor = "var(--internal-container)";
+        cellUsernameInput.style.boxShadow = "0 0px 4px 0 var(--shadow)";
+        cellUsernameInput.style.border = "1px solid var(--border)";
+        cellUsernameInput.style.paddingLeft = "10px";
+        cellUsernameInput.style.fontSize = "16px";
+        cellUsernameInput.style.color = "var(--text-main)";
+        cellUsernameInput.style.resize = "none";
+
+    const cellBioInput = document.createElement("textarea");
+        cellUsernameInput.type = "text";
+        cellBioInput.id = "profile-bio-input";
+        cellBioInput.textContent = 
+            (await Preferences.get({ key: "ProfileBiography" })).value;
+        cellBioInput.style.whiteSpace = "pre-wrap";
+        cellBioInput.style.position = "absolute";
+        cellBioInput.style.top = "65%";
+        cellBioInput.style.left = "50%";
+        cellBioInput.style.transform = "translate(-50%, -50%)";
+        cellBioInput.style.width = "80%";
+        cellBioInput.style.height = "100px";
+        cellBioInput.style.borderRadius = "10px";
+        cellBioInput.style.backgroundColor = "var(--internal-container)";
+        cellBioInput.style.boxShadow = "0 0px 4px 0 var(--shadow)";
+        cellBioInput.style.border = "1px solid var(--border)";
+        cellBioInput.style.paddingLeft = "10px";
+        cellBioInput.style.paddingTop = "10px";
+        cellBioInput.style.fontSize = "16px";
+        cellBioInput.style.resize = "none";
+        cellBioInput.style.color = "var(--text-main)";
+        cellBioInput.style.fontFamily = "var(--font-family)";
+
+    const cellExitBtn = document.createElement("button");
+        cellExitBtn.style.position = "fixed";
+        cellExitBtn.className = "fa-solid fa-x";
+        cellExitBtn.style.fontSize = "20px";
+        cellExitBtn.style.height = "40px";
+        cellExitBtn.style.width = "40px";
+        cellExitBtn.style.borderRadius = "50px";
+        cellExitBtn.style.backgroundColor = "var(--bg-panel)";
+        cellExitBtn.style.color = "var(--red-accent)";
+        cellExitBtn.style.top = "93%";
+        cellExitBtn.style.left = "40%";
+        cellExitBtn.style.border = "none";
+        cellExitBtn.style.boxShadow = "0 0 15px 0 var(--shadow)";
+        cellExitBtn.style.transform = "translate(-50%, -50%)";
+        cellExitBtn.style.zIndex = "-1";
+
+        cellExitBtn.onclick = () => {
+            cell.remove();
+        };
+
+    const cellSaveBtn = document.createElement("button");
+        cellSaveBtn.style.position = "fixed";
+        cellSaveBtn.className = "fa-solid fa-floppy-disk";
+        cellSaveBtn.style.fontSize = "20px";
+        cellSaveBtn.style.height = "40px";
+        cellSaveBtn.style.width = "40px";
+        cellSaveBtn.style.borderRadius = "50px";
+        cellSaveBtn.style.backgroundColor = "var(--bg-panel)";
+        cellSaveBtn.style.color = "var(--btn-icon)";
+        cellSaveBtn.style.top = "93%";
+        cellSaveBtn.style.left = "60%";
+        cellSaveBtn.style.border = "none";
+        cellSaveBtn.style.boxShadow = "0 0 15px 0 var(--shadow)";
+        cellSaveBtn.style.transform = "translate(-50%, -50%)";
+        cellSaveBtn.style.zIndex = "-1";
+
+        cellSaveBtn.onclick = () => {
+            if (cellUsernameInput.value.trim() === "") {
+                alert("Please enter a valid name.");
+                return;
+            }
+            if (cellBioInput.value.trim() === "") {
+                alert("Please enter a valid bio.");
+                return;
+            }
+            updateProfileName(cellUsernameInput.value);
+            updateProfileBio(cellBioInput.value);
+            cell.remove();
+        };
+
+        cell.appendChild(cellProfileImageBtn);
+        cell.appendChild(cellProfileImage);
+        cell.appendChild(cellUsernameInput);
+        cell.appendChild(cellBioInput);
+        cell.appendChild(cellExitBtn);
+        cell.appendChild(cellSaveBtn);
+        profileEditPanel.appendChild(cell);
+});
+
+async function updateProfileName(name) {
+    const topBarUsername = document.getElementById("top-bar-username");
+    const profileUsername = document.getElementById("profile-name");
+
+    topBarUsername.textContent = name;
+    profileUsername.textContent = name;
+
+    await Preferences.set({ key: "username", value: name.toString() });
+}
+
+async function loadUsername(){
+    const storedName = (await Preferences.get({ key: "username" })).value;
+    if (storedName) {
+        const topBarUsername = document.getElementById("top-bar-username");
+        const profileUsername = document.getElementById("profile-name");
+
+        topBarUsername.textContent = storedName;
+        profileUsername.textContent = storedName;
+    }
+    else {
+        await updateProfileName("Archie Moon");
+    }
+}
+
+async function updateProfileBio(content) {
+    const profileInfo = document.getElementById("profile-info");
+
+    profileInfo.textContent = content;
+
+    await Preferences.set({ key: "ProfileBiography", value: content.toString() });
+}
+
+async function loadProfileInfo(){
+    const storedInfo = (await Preferences.get({ key: "ProfileBiography" })).value;
+    if (storedInfo) {
+        const profileInfo = document.getElementById("profile-info");
+
+        profileInfo.textContent = storedInfo;
+    }
+}
+
+const profilePhotoOptions = [
+    "images/profile-photo.png",
+    "images/default-avatar-male.png",
+    "images/default-avatar-female.png"
+];
+
+async function cycleProfilePhoto() {
+    const storedIndex = (await Preferences.get({ key: "profileImageIndex" })).value;
+    const currentIndex = storedIndex ? parseInt(storedIndex, 10) : 0;
+    const nextIndex = (currentIndex + 1) % profilePhotoOptions.length;
+
+    await Preferences.set({ key: "profileImageIndex", value: nextIndex.toString() });
+    await Preferences.set({ key: "profileImage", value: profilePhotoOptions[nextIndex] });
+
+    loadProfilePhoto();
+}
+
+async function loadProfilePhoto() {
+    const storedPhoto = (await Preferences.get({ key: "profileImage" })).value;
+    if (storedPhoto) {
+        const profileImage = document.getElementById("top-bar-icon");
+        const profileEditImage = document.getElementById("profile-photo");
+        const profileEditImagePanel = document.getElementById("profile-edit-image");
+
+        profileImage.style.backgroundImage = `url("${storedPhoto}")`;
+        profileEditImage.style.backgroundImage = `url("${storedPhoto}")`;
+        profileEditImagePanel.style.backgroundImage = `url("${storedPhoto}")`;
+    }
+    else{
+        await Preferences.set({ key: "profileImage", value: profilePhotoOptions[0] });
+        await Preferences.set({ key: "profileImageIndex", value: "0" });
+        loadProfilePhoto();
+    }
+}
+
 //////////////////////// Home Page ////////////////////////
 
 async function updateFuelPrice() {
@@ -1131,7 +1360,7 @@ fuelTypeBtn.addEventListener("click", async () => {
         OBD_FUEL_DENSITY = 840;
     } else {
         IDLE_LITRES_PER_HOUR = 0.8;
-        OBD_AFR = 14.7;
+        OBD_AFR = 14.1;
         OBD_FUEL_DENSITY = 750;
     }
 
@@ -1957,6 +2186,9 @@ async function refreshPages() {
 
 function renderHomePage() {
     renderRecentTrips();
+    loadUsername();
+    loadProfileInfo();
+    loadProfilePhoto();
 }
 
 updateFuelPrice();
