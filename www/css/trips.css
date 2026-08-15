@@ -22,7 +22,6 @@
 
     display: flex;
     justify-content: center;
-    overflow: hidden;
 }
 
 #recent-trips-page-content {

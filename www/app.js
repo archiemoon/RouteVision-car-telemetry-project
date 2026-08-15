@@ -1508,6 +1508,8 @@ function updateIcon() {
 }
 
 const refuelInput = document.getElementById("refuel-input");
+    refuelInput.style.backgroundColor = "var(--bg-panel)";
+    refuelInput.style.color = "var(--text-main)";
 const confirmRefuelBtn = document.getElementById("confirm-refuel-btn");
 const fillTankBtn = document.getElementById("fill-tank-btn");
 
