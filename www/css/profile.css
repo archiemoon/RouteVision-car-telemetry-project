@@ -116,7 +116,7 @@
     align-items: center;
     flex-direction: column;
     white-space: pre-wrap;
-
+    text-align: center;
 
     color: var(--text-accent);
     font-size: 19px;
