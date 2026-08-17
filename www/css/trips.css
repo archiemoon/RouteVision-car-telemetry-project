@@ -9,8 +9,8 @@ html, body {
 }
 
 #recent-trips-page {
-    height: calc(100vh - 165px - 100px);
-    margin-top: 165px;
+    height: calc(100vh - 130px - 100px);
+    margin-top: 130px;
     margin-left: 10px;
     margin-right: 10px;
     margin-bottom: 100px;
