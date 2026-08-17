@@ -23,7 +23,7 @@
     width: 100px;
     height: 100px;
     border-radius: 50%;
-    border: 2px solid rgb(249, 248, 248);
+    border: 1px solid rgb(249, 248, 248);
     z-index: 1;
 
     background-image: url(../images/profile-photo.png);
@@ -103,7 +103,7 @@
     color: var(--btn-icon);
     position: fixed;
     border-radius: 50px;
-    border: 2px solid rgb(249, 248, 248);
+    border: 1px solid rgb(249, 248, 248);
     background-color: var(--bg-panel);
     box-shadow: 0 0 15px 0 var(--shadow);
     top: 8%;
