@@ -1104,7 +1104,7 @@ editProfileBtn.addEventListener("click", async () => {
 
     const cellUsernameInput = document.createElement("input"); 
         cellUsernameInput.type = "text";
-        cellUsernameInput.maxLength = 13;
+        cellUsernameInput.maxLength = 12;
         cellUsernameInput.id = "profile-username-input";
         cellUsernameInput.value = 
             (await Preferences.get({ key: "username" })).value;
