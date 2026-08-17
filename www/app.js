@@ -54,7 +54,7 @@ async function init() {
         OBD_FUEL_DENSITY = 750;
     }
 
-    connectOBD(true);
+    //connectOBD(true);
 }
 init();
 
@@ -1104,6 +1104,7 @@ editProfileBtn.addEventListener("click", async () => {
 
     const cellUsernameInput = document.createElement("input"); 
         cellUsernameInput.type = "text";
+        cellUsernameInput.maxLength = 13;
         cellUsernameInput.id = "profile-username-input";
         cellUsernameInput.value = 
             (await Preferences.get({ key: "username" })).value;
@@ -1123,9 +1124,25 @@ editProfileBtn.addEventListener("click", async () => {
         cellUsernameInput.style.resize = "none";
 
     const cellBioInput = document.createElement("textarea");
-        cellUsernameInput.type = "text";
         cellBioInput.id = "profile-bio-input";
-        cellBioInput.textContent = 
+        cellBioInput.addEventListener("input", () => {
+            const cursorPos = cellBioInput.selectionStart;
+            const original = cellBioInput.value;
+
+            const lines = original
+                .split("\n")
+                .slice(0, 4)
+                .map(line => line.slice(0, 30));
+
+            const updated = lines.join("\n");
+
+            if (updated !== original) {
+                const removedBeforeCursor = original.slice(0, cursorPos).length - updated.slice(0, cursorPos).length;
+                cellBioInput.value = updated;
+                cellBioInput.selectionStart = cellBioInput.selectionEnd = cursorPos - removedBeforeCursor;
+            }
+        });
+        cellBioInput.value = 
             (await Preferences.get({ key: "ProfileBiography" })).value;
         cellBioInput.style.whiteSpace = "pre-wrap";
         cellBioInput.style.position = "absolute";
@@ -1269,9 +1286,9 @@ async function loadProfilePhoto() {
         const profileEditImage = document.getElementById("profile-photo");
         const profileEditImagePanel = document.getElementById("profile-edit-image");
 
-        profileImage.style.backgroundImage = `url("${storedPhoto}")`;
-        profileEditImage.style.backgroundImage = `url("${storedPhoto}")`;
-        profileEditImagePanel.style.backgroundImage = `url("${storedPhoto}")`;
+        if (profileImage) profileImage.style.backgroundImage = `url("${storedPhoto}")`;
+        if (profileEditImage) profileEditImage.style.backgroundImage = `url("${storedPhoto}")`;
+        if (profileEditImagePanel) profileEditImagePanel.style.backgroundImage = `url("${storedPhoto}")`;
     }
     else{
         await Preferences.set({ key: "profileImage", value: profilePhotoOptions[0] });
@@ -1353,7 +1370,7 @@ fuelTypeBtn.addEventListener("click", async () => {
         ? "url(images/B7-fuel-label.png)" 
         : "url(images/E10-fuel-label.png)";
 
-    //update OBD MAF conversion constants
+    //update OBD MAF constants
     if (newType === "B7") {
         IDLE_LITRES_PER_HOUR = 0.5;
         OBD_AFR = 14.5;
@@ -2032,7 +2049,7 @@ async function updateProfileStats() {
 const versionBtn = document.getElementById("release-version-btn")
 versionBtn.addEventListener("click", () => {
     const confirmed = confirm(
-        "Current Release Version: v1.3.1"
+        "Current Release Version: v1.3.2"
     );
 
     if (!confirmed) return;
